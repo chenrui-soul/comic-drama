@@ -42,6 +42,54 @@ function activePaths(kind, files) {
   if (kind === 'story') return md.filter(f => /(^|\/)SKILL\.md$/i.test(f.path) || /inspiration-to-short-drama\/(references|SKILL\.md)/i.test(f.path));
   return md.filter(f => /(^|\/)SKILL\.md$/i.test(f.path) || /(^|\/)(docs|specs|rules|modules)\//i.test(f.path));
 }
+function moduleFiles(pack, module) {
+  const manifest = pack.files.find(f => /(^|\/)platform-adapter\.json$/i.test(f.path));
+  if (manifest) {
+    let config;
+    try { config = JSON.parse(manifest.content); } catch (_) { fail('platform-adapter.json 格式错误'); }
+    const selected = config.modules?.[module];
+    if (!Array.isArray(selected) || !selected.length) fail(`SKILL_INCOMPATIBLE：适配声明未提供 ${module} 的文件列表`);
+    return selected.map(p => {
+      const file=pack.files.find(f=>f.path===p);
+      if (!file || !/\.(md|txt|ya?ml)$/i.test(file.path)) fail(`SKILL_INCOMPATIBLE：${module} 引用文件不存在或不是规则文本：${p}`);
+      return file;
+    });
+  }
+  const skill=pack.files.find(f=>/(^|\/)SKILL\.md$/i.test(f.path));
+  const meta=parseMeta(skill?.content);
+  if (pack.kind==='asset' && meta.name==='visual-asset-skill') {
+    // The application implements the visual prompt subset, not the Skill's external lifecycle.
+    const selected=['SKILL.md','docs/view_requirements.md','docs/asset_scope_policy.md','docs/naming_convention.md','modules/production_layer.md'];
+    return selected.map(p=>pack.files.find(f=>f.path===p||f.path.endsWith('/'+p))).filter(Boolean);
+  }
+  const otherModules = module.startsWith('character_') ? /(^|\/)(scene|prop)[_./-]/i : module.startsWith('scene_') ? /(^|\/)(character|prop)[_./-]/i : /(^|\/)(character|scene)[_./-]/i;
+  return activePaths(pack.kind,pack.files).filter(f=>pack.kind==='story'||(!/(voice|authorization|lifecycle|management_layer|agent_interface)/i.test(f.path)&&!otherModules.test(f.path)));
+}
+function compatibility(pack) {
+  const warnings = [], paths = new Set(pack.files.map(f => f.path));
+  const modules=pack.kind==='story'?['story_generation']:MODULES.filter(m=>m!=='story_generation');
+  const modulePaths={}, errors=[];
+  for(const module of modules) {
+    try { modulePaths[module]=moduleFiles(pack,module).map(f=>f.path); }
+    catch(err) { errors.push(err.message);modulePaths[module]=[]; }
+  }
+  const active=pack.files.filter(f=>Object.values(modulePaths).some(list=>list.includes(f.path)));
+  for (const file of active) {
+    for (const match of file.content.matchAll(/\]\(([^)]+\.(?:md|yaml|yml|json|txt))(?:#[^)]*)?\)/gi)) {
+      if (/^https?:/i.test(match[1])) continue;
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file.path), match[1]));
+      if (!paths.has(target) && !paths.has(match[1])) errors.push(`缺少引用：${file.path} → ${match[1]}`);
+    }
+    for(const match of file.content.matchAll(/`((?:docs|modules|rules|specs|schemas|contracts)\/[^`\s]+\.(?:md|json|yaml|yml|txt))`/g)) {
+      const prefix=pack.files.find(f=>/(^|\/)SKILL\.md$/i.test(f.path))?.path.replace(/SKILL\.md$/i,'')||'';
+      if(!paths.has(match[1])&&!paths.has(prefix+match[1])) errors.push(`缺少引用：${file.path} → ${match[1]}`);
+    }
+  }
+  const archived = pack.files.filter(f => !active.some(a => a.path === f.path)).map(f => f.path);
+  if (archived.length) warnings.push('脚本、校验器和未启用文件仅归档，不执行；支持范围为提示词编译。');
+  warnings.push('仅接入当前任务的提示词规则；声音、授权、外部审批及脚本不执行。场景默认正反左右四视图，顶俯图由用户额外勾选。');
+  return { supported_modules: modules, module_paths:modulePaths, active_paths: active.map(f => f.path), archived_paths: archived, warnings, errors:[...new Set(errors)], scope: 'prompt_only' };
+}
 function normalizePack(input) {
   if (!input || !Array.isArray(input.files) || input.files.length > 160) fail('创作 Skill 包需包含 files，最多 160 个文本文件');
   const names = new Set(); let bytes = 0;
@@ -104,9 +152,9 @@ function init(db) {
   }
   initialized.add(db);
 }
-function getPack(db, id) { init(db); const row = db.prepare('SELECT payload FROM creative_skill_packs WHERE id = ?').get(id); return row ? JSON.parse(row.payload) : null; }
-function list(db) { init(db); return db.prepare('SELECT payload, created_at FROM creative_skill_packs ORDER BY created_at DESC').all().map(r => ({ ...JSON.parse(r.payload), created_at: r.created_at })); }
-function save(db, input) { init(db); const pack = normalizePack(input); db.prepare('INSERT OR IGNORE INTO creative_skill_packs VALUES (?, ?, ?)').run(pack.id, JSON.stringify(pack), new Date().toISOString()); return pack; }
+function getPack(db, id) { init(db); const row = db.prepare('SELECT payload FROM creative_skill_packs WHERE id = ?').get(id); if (!row) return null; const pack = JSON.parse(row.payload); return { ...pack, compatibility: compatibility(pack) }; }
+function list(db) { init(db); return db.prepare('SELECT id, created_at FROM creative_skill_packs ORDER BY created_at DESC').all().map(r => ({ ...getPack(db, r.id), created_at: r.created_at })); }
+function save(db, input) { init(db); const pack = normalizePack(input); db.prepare('INSERT OR IGNORE INTO creative_skill_packs VALUES (?, ?, ?)').run(pack.id, JSON.stringify(pack), new Date().toISOString()); return getPack(db,pack.id); }
 function getSettings(db, dramaId) {
   init(db);
   const row = db.prepare('SELECT * FROM creative_skill_settings WHERE drama_id = ?').get(Number(dramaId) || 0);
@@ -119,7 +167,12 @@ function getSettings(db, dramaId) {
 function setSettings(db, dramaId, body) {
   init(db);
   if (!db.prepare('SELECT id FROM dramas WHERE id = ? AND deleted_at IS NULL').get(Number(dramaId))) fail('项目不存在');
-  for (const key of ['story_pack_id', 'asset_pack_id']) if (body[key] && !getPack(db, body[key])) fail('创作 Skill 不存在');
+  const previous = getSettings(db, dramaId);
+  body = { ...previous, ...body };
+  for (const [key, kind] of [['story_pack_id', 'story'], ['asset_pack_id', 'asset']]) {
+    if (body[key] && getPack(db, body[key])?.kind !== kind) fail('创作 Skill 不存在或类型不匹配');
+    if (body[key] && getPack(db,body[key]).compatibility.errors.length) fail('SKILL_INCOMPATIBLE：'+getPack(db,body[key]).compatibility.errors.join('；'));
+  }
   db.prepare('INSERT OR REPLACE INTO creative_skill_settings VALUES (?, ?, ?)').run(Number(dramaId), body.story_pack_id || null, body.asset_pack_id || null);
   return getSettings(db, dramaId);
 }
@@ -129,11 +182,15 @@ function getModulePrompt(db, dramaId, module) {
   const settings = getSettings(db, dramaId);
   const pack = getPack(db, modulePackId(settings, module));
   if (!pack) return '';
-  const body = pack.files.filter(f => pack.active_paths.includes(f.path)).map(f => `--- ${f.path} ---\n${f.content}`).join('\n\n');
-  return `${body}\n\n${ADAPTERS[module]}`;
+  if(pack.compatibility.errors.length) fail('SKILL_INCOMPATIBLE：'+pack.compatibility.errors.join('；'));
+  const body = moduleFiles(pack,module).map(f => `--- ${f.path} ---\n${f.content}`).join('\n\n');
+  if(body.length>MAX_ACTIVE_CHARS) fail(`SKILL_INCOMPATIBLE：${module} 生效规则超过 70000 字符，不会静默截断`);
+  return `${body}\n\n本次只编译 ${module} 的提示词。未选择完整视图包时属于用户明确选择的单图/现有版式范围；完整视图入口以用户本次选择为准，场景顶俯图可选。包内其他资产类型、审批、声音和文件操作不属于本次任务。\n${ADAPTERS[module]}`;
 }
-function composeSystemPrompt(db, dramaId, module, basePrompt) {
+function composeSystemPrompt(db, dramaId, module, basePrompt, options = {}) {
   const custom = getModulePrompt(db, dramaId, module);
-  return custom ? `${custom}\n\n平台内置格式规则（必须遵守）：\n${basePrompt || ''}` : (basePrompt || '');
+  if (!custom) return basePrompt || '';
+  if (module === 'story_generation') return `${custom}\n\n平台内置格式规则（必须遵守）：\n${basePrompt || ''}`;
+  return `${custom}\n\n${require('./assetPromptPolicy').contract(module, options.mode)}`;
 }
-module.exports = { MODULES, init, list, save, getPack, readUpload, normalizePack, getSettings, setSettings, getModulePrompt, composeSystemPrompt, fail };
+module.exports = { MODULES, init, list, save, getPack, readUpload, normalizePack, getSettings, setSettings, getModulePrompt, composeSystemPrompt, compatibility, moduleFiles, fail };

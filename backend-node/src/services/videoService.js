@@ -1,3 +1,4 @@
+const submissions = require('./videoSubmissionService');
 /** 轮询/同步返回的 video_url 须为 http(s)，避免中转 FAILURE 时 result_url 为错误文案 */
 function resolveRemoteVideoUrl(videoUrl, fallbackError) {
   if (videoUrl && videoClient.isPlausibleHttpVideoUrl(videoUrl)) {
@@ -25,10 +26,6 @@ function setVideoGenFailed(db, videoGenId, errorMsg, now) {
 function list(db, query) {
   let sql = 'FROM video_generations WHERE deleted_at IS NULL';
   const params = [];
-  if (getTenantId()) {
-    sql += ' AND organization_id = ?';
-    params.push(getTenantId());
-  }
   if (query.drama_id) {
     sql += ' AND drama_id = ?';
     params.push(query.drama_id);
@@ -51,7 +48,7 @@ function list(db, query) {
   const pageSize = Math.min(100, Math.max(1, parseInt(query.page_size, 10) || 20));
   const offset = (page - 1) * pageSize;
   const rows = db.prepare('SELECT * ' + sql + ' ORDER BY created_at DESC LIMIT ? OFFSET ?').all(...params, pageSize, offset);
-  return { items: rows.map(rowToItem), total, page, pageSize };
+  return { items: rows.map(row => getById(db,row.id)), total, page, pageSize };
 }
 
 function hasProviderTaskId(r) {
@@ -66,6 +63,7 @@ function rowToItem(r) {
     provider: r.provider,
     prompt: r.prompt,
     model: r.model,
+    duration: r.duration,
     image_gen_id: r.image_gen_id,
     image_url: r.image_url,
     video_url: r.video_url,
@@ -77,19 +75,16 @@ function rowToItem(r) {
     updated_at: r.updated_at,
     completed_at: r.completed_at,
     /** 失败且已有上游任务 ID 时可「继续查询」，不暴露原始 provider_task_id */
-    can_resume_poll: r.status === 'failed' && hasProviderTaskId(r),
+    can_resume_poll: r.status === 'failed' && (hasProviderTaskId(r) || !!r.video_url),
+    can_retry_download: r.status === 'failed' && !!r.video_url,
   };
 }
 
 function getById(db, id) {
-  const tenantId = getTenantId();
-  const sql = tenantId
-    ? 'SELECT * FROM video_generations WHERE id = ? AND organization_id = ? AND deleted_at IS NULL'
-    : 'SELECT * FROM video_generations WHERE id = ? AND deleted_at IS NULL';
-  const r = tenantId
-    ? db.prepare(sql).get(Number(id), tenantId)
-    : db.prepare(sql).get(Number(id));
-  return r ? rowToItem(r) : null;
+  const r = db.prepare('SELECT * FROM video_generations WHERE id = ? AND deleted_at IS NULL').get(Number(id));
+  if (!r) return null;
+  const snap = submissions.get(db, r.id);
+  return { ...rowToItem(r), actual_duration_ms: snap?.actual_duration_ms, duration_warning: snap?.warning, submission_state: snap?.state };
 }
 
 const fs = require('fs');
@@ -100,11 +95,10 @@ const videoClient = require('./videoClient');
 const taskService = require('./taskService');
 const storageLayout = require('./storageLayout');
 const { getFfmpegPath, hasLocalFfmpeg } = require('../utils/ffmpegPath');
-const { getTenantId, runWithTenant } = require('../utils/tenantContext');
 
 /** @returns {{ dir: string, relPrefix: string }} 与图片 uploads 一致的工程子目录规则 */
 function resolveVideosDir(storagePath, projectSubdir) {
-  const sub = storageLayout.tenantSubdir(projectSubdir && String(projectSubdir).trim() || 'library');
+  const sub = projectSubdir && String(projectSubdir).trim();
   if (sub) {
     const relPrefix = `${sub.replace(/\\/g, '/')}/videos`;
     return { dir: path.join(storagePath, sub, 'videos'), relPrefix };
@@ -124,13 +118,15 @@ async function downloadVideoToLocal(storagePath, videoUrl, videoGenId, log, proj
     const ext = (videoUrl.split('?')[0].match(/\.(mp4|webm|mov)$/i) || [])[1] || 'mp4';
     const name = `vg_${videoGenId}_${randomUUID().slice(0, 8)}.${ext}`;
     const filePath = path.join(dir, name);
-    const res = await fetch(videoUrl, { method: 'GET' });
+    const res = await fetch(videoUrl, { method: 'GET', signal: AbortSignal.timeout(120000) });
     if (!res.ok) {
       log.warn('Download video failed', { status: res.status, videoGenId });
       return null;
     }
+    if (/text\/html|application\/json/i.test(res.headers.get('content-type') || '')) throw new Error('远端返回网页或 JSON，不是视频');
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(filePath, buf);
+    try { require('../utils/probeVideo').probeVideo(filePath); } catch (err) { fs.unlinkSync(filePath); throw err; }
     const relativePath = `${relPrefix}/${name}`.replace(/\\/g, '/');
     log.info('Video saved to local', { videoGenId, local_path: relativePath, projectSubdir: projectSubdir || '(root)' });
     return relativePath;
@@ -187,7 +183,7 @@ function normalizeVideoFileToTargetPixels(absPath, tw, th, log, videoGenId) {
   const baseArgs = ['-y', '-i', absPath, '-vf', vf, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
   let r = spawnSync(ffmpeg, [...baseArgs, '-c:a', 'copy', tmpOut], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (r.status !== 0) {
-    r = spawnSync(ffmpeg, [...baseArgs, '-an', tmpOut], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    r = spawnSync(ffmpeg, [...baseArgs, '-c:a', 'aac', '-b:a', '192k', tmpOut], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   }
   if (r.status !== 0) {
     log.warn('[视频] 画幅归一化失败（保留原文件）', {
@@ -231,6 +227,10 @@ function resolveStoragePath(cfg) {
 
 async function finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, videoUrl, logLabel) {
   const now = new Date().toISOString();
+  // Persist the result URL before downloading so restart/retry can recover without another generation.
+  db.prepare('UPDATE video_generations SET video_url=?,updated_at=? WHERE id=?').run(videoUrl,now,videoGenId);
+  submissions.mark(db,videoGenId,'downloading');
+  if(row.task_id) taskService.updateTaskStatus(db,row.task_id,'processing',90,'远端已完成，正在下载并校验视频…');
   let localPath = null;
   try {
     const cfg = require('../config').loadConfig();
@@ -239,9 +239,22 @@ async function finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, v
     localPath = await downloadVideoToLocal(storagePath, videoUrl, videoGenId, log, projectSubdir);
     maybeNormalizeVideoAfterDownload(storagePath, localPath, rowForAspect, videoGenId, log);
   } catch (_) {}
+  if (!localPath) {
+    const error = '远端视频已生成，但下载或媒体校验失败。点击继续查询可仅重试下载，不会重新生成。';
+    db.prepare('UPDATE video_generations SET video_url=?,error_msg=?,status=?,updated_at=? WHERE id=?').run(videoUrl,error,'failed',now,videoGenId);
+    submissions.mark(db,videoGenId,'download_failed',error);
+    if(row.task_id) taskService.updateTaskError(db,row.task_id,error);
+    return;
+  }
+  const cfgForProbe = require('../config').loadConfig();
+  const measured = require('../utils/probeVideo').probeVideo(path.join(resolveStoragePath(cfgForProbe),localPath));
+  submissions.init(db);
+  const requested = Number(row.duration)*1000;
+  const warning = requested && Math.abs(measured.duration_ms-requested)>300 ? `请求 ${row.duration} 秒，实际 ${measured.duration_ms/1000} 秒，偏差超过 0.3 秒；成片已保留` : null;
+  db.prepare("UPDATE video_submission_snapshots SET state='completed',actual_duration_ms=?,warning=? WHERE video_id=?").run(measured.duration_ms,warning,videoGenId);
   try {
     db.prepare(
-      'UPDATE video_generations SET status = ?, video_url = ?, local_path = ?, completed_at = ?, updated_at = ? WHERE id = ?'
+      'UPDATE video_generations SET status = ?, video_url = ?, local_path = ?, completed_at = ?, updated_at = ?, error_msg=NULL WHERE id = ?'
     ).run('completed', videoUrl, localPath, now, now, videoGenId);
   } catch (e) {
     if ((e.message || '').includes('completed_at')) {
@@ -295,6 +308,13 @@ async function pollProviderTaskAndFinalize(db, log, videoGenId, row, rowForAspec
   );
   const now = new Date().toISOString();
   const polledVideo = resolveRemoteVideoUrl(pollResult.video_url, pollResult.error);
+  if (pollResult.pending) {
+    submissions.mark(db,videoGenId,'polling',pollResult.error);
+    if(row.task_id) taskService.updateTaskStatus(db,row.task_id,'processing',10,pollResult.error);
+    const timer=setTimeout(()=>resumePollForVideoGeneration(db,log,videoGenId).catch(err=>log.warn('继续查询失败',{error:err.message})),60000);
+    timer.unref?.();
+    return;
+  }
   if (polledVideo.ok) {
     await finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, polledVideo.video_url, 'after poll');
   } else {
@@ -317,7 +337,15 @@ async function resumePollForVideoGeneration(db, log, videoGenId) {
   const providerTaskId = row.provider_task_id && String(row.provider_task_id).trim();
   if (!providerTaskId) return;
 
-  const config = videoClient.getDefaultVideoConfig(db, row.model);
+  let config;
+  try {
+    const snapshot = submissions.get(db, videoGenId);
+    config = snapshot ? submissions.configFor(db, snapshot) : videoClient.getDefaultVideoConfig(db, row.model);
+  } catch (err) {
+    setVideoGenFailed(db, videoGenId, err.message, new Date().toISOString());
+    if (row.task_id) taskService.updateTaskError(db, row.task_id, err.message);
+    return;
+  }
   if (!config) {
     const now = new Date().toISOString();
     setVideoGenFailed(db, videoGenId, '未配置视频模型', now);
@@ -356,6 +384,15 @@ function resumeFailedVideoPoll(db, log, videoGenId) {
   const id = Number(videoGenId);
   const row = db.prepare('SELECT * FROM video_generations WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!row) return { ok: false, status: 404, error: '记录不存在' };
+  if (row.status === 'failed' && row.video_url) {
+    db.prepare("UPDATE video_generations SET status='processing',updated_at=? WHERE id=?").run(new Date().toISOString(),id);
+    if(row.task_id) taskService.updateTaskStatus(db,row.task_id,'processing',80,'远端已完成，正在重试下载…');
+    setImmediate(()=>finalizeSuccessfulVideo(db,log,id,row,row,row.video_url,'retry download').catch(err=>{
+      setVideoGenFailed(db,id,err.message,new Date().toISOString());
+      if(row.task_id) taskService.updateTaskError(db,row.task_id,err.message);
+    }));
+    return {ok:true,item:getById(db,id)};
+  }
   if (row.status === 'processing' && hasProviderTaskId(row)) {
     if (!activeVideoPolls.has(id)) {
       setImmediate(() => {
@@ -414,25 +451,38 @@ function resumeFailedVideoPoll(db, log, videoGenId) {
 
 /** 启动时恢复 processing 视频任务；无 provider_task_id 的视为中断 */
 function resumeProcessingVideoGenerations(db, log) {
+  const downloads=db.prepare("SELECT * FROM video_generations WHERE status='processing' AND video_url IS NOT NULL AND TRIM(video_url)!='' AND deleted_at IS NULL").all();
+  for(const row of downloads) {
+    setImmediate(()=>finalizeSuccessfulVideo(db,log,row.id,row,row,row.video_url,'startup download recovery').catch(err=>{
+      setVideoGenFailed(db,row.id,err.message,new Date().toISOString());
+      if(row.task_id) taskService.updateTaskError(db,row.task_id,err.message);
+    }));
+  }
   const stuck = db
     .prepare(
       `SELECT id, task_id FROM video_generations
        WHERE status = 'processing' AND deleted_at IS NULL
+         AND (video_url IS NULL OR TRIM(video_url) = '')
          AND (provider_task_id IS NULL OR TRIM(provider_task_id) = '')`
     )
     .all();
   const stuckMsg = '服务重启后无法恢复轮询（缺少厂商任务 ID），请重新生成';
   for (const s of stuck) {
     const now = new Date().toISOString();
-    setVideoGenFailed(db, s.id, stuckMsg, now);
+    const snapshot=submissions.get(db,s.id);
+    const unknown = snapshot && snapshot.state !== 'queued';
+    if (snapshot?.state === 'queued') { setImmediate(()=>processVideoGeneration(db,log,s.id)); continue; }
+    if (unknown) submissions.mark(db,s.id,'submission_unknown','服务中断时正在提交，尚无远端任务 ID；请在管理器核对，禁止自动重发');
+    setVideoGenFailed(db, s.id, unknown ? '提交状态未知，请在管理器核对，禁止重复生成' : stuckMsg, now);
     if (s.task_id) taskService.updateTaskError(db, s.task_id, stuckMsg);
     log.warn('Marked interrupted video generation as failed', { videoGenId: s.id });
   }
 
   const resumable = db
     .prepare(
-      `SELECT id, organization_id FROM video_generations
+      `SELECT id FROM video_generations
        WHERE status = 'processing' AND deleted_at IS NULL
+         AND (video_url IS NULL OR TRIM(video_url) = '')
          AND provider_task_id IS NOT NULL AND TRIM(provider_task_id) != ''`
     )
     .all();
@@ -441,8 +491,7 @@ function resumeProcessingVideoGenerations(db, log) {
   }
   for (const r of resumable) {
     setImmediate(() => {
-      if (!r.organization_id) return;
-      runWithTenant(r.organization_id, () => resumePollForVideoGeneration(db, log, r.id)).catch((e) => {
+      resumePollForVideoGeneration(db, log, r.id).catch((e) => {
         log.error('resumePollForVideoGeneration unhandled', { videoGenId: r.id, error: e.message });
       });
     });
@@ -471,7 +520,8 @@ async function processVideoGeneration(db, log, videoGenId) {
     const storageLocalPath = path.isAbsolute(cfg.storage?.local_path)
       ? cfg.storage.local_path
       : path.join(process.cwd(), cfg.storage?.local_path || './data/storage');
-    const config = videoClient.getDefaultVideoConfig(db, row.model);
+    const snapshot = submissions.get(db, videoGenId);
+    const config = snapshot ? submissions.configFor(db, snapshot) : videoClient.getDefaultVideoConfig(db, row.model);
     if (!config) {
       setVideoGenFailed(db, videoGenId, '未配置视频模型', now);
       if (row.task_id) taskService.updateTaskError(db, row.task_id, '未配置视频模型');
@@ -484,15 +534,8 @@ async function processVideoGeneration(db, log, videoGenId) {
         if (!Array.isArray(reference_urls)) reference_urls = null;
       } catch (_) {}
     }
-    // 优先使用分镜自身的镜头时长（storyboard.duration），其次用 video_generations.duration
-    let effectiveDuration = row.duration || null;
-    if (row.storyboard_id) {
-      const sb = db.prepare('SELECT duration FROM storyboards WHERE id = ?').get(row.storyboard_id);
-      if (sb && sb.duration > 0) {
-        effectiveDuration = sb.duration;
-        log.info('使用分镜镜头时长', { storyboard_id: row.storyboard_id, duration: effectiveDuration, video_gen_id: videoGenId });
-      }
-    }
+    // The queued row and snapshot are authoritative; editing a storyboard never rewrites an in-flight request.
+    const effectiveDuration = snapshot?.payload.duration ?? row.duration;
     let aspectForVideo = row.aspect_ratio;
     if (aspectForVideo) {
       const n = videoClient.normalizeAspectRatioForApi(aspectForVideo);
@@ -521,7 +564,12 @@ async function processVideoGeneration(db, log, videoGenId) {
         `正在上传 ${reference_urls.length} 张参考图到图床…`
       );
     }
+    if (snapshot) require('./videoReferenceSnapshot').verify(snapshot.payload.reference_files);
+    submissions.mark(db, videoGenId, 'submitting');
     const result = await videoClient.callVideoApi(db, log, {
+      config_snapshot: config,
+      submission_snapshot: !!snapshot,
+      voice_reference_url: snapshot?.payload.voice_reference_url || undefined,
       prompt: row.prompt,
       model: row.model,
       duration: effectiveDuration,
@@ -543,11 +591,13 @@ async function processVideoGeneration(db, log, videoGenId) {
     });
     const now2 = new Date().toISOString();
     if (result.error) {
+      submissions.mark(db, videoGenId, result.submission_unknown ? 'submission_unknown' : 'rejected', result.error);
       setVideoGenFailed(db, videoGenId, result.error, now2);
       if (row.task_id) taskService.updateTaskError(db, row.task_id, result.error);
       log.error('Video generation failed', { id: videoGenId, error: result.error });
       return;
     }
+    submissions.mark(db, videoGenId, 'accepted');
     const directVideo = resolveRemoteVideoUrl(result.video_url, result.error);
     if (directVideo.ok) {
       await finalizeSuccessfulVideo(db, log, videoGenId, row, rowForAspect, directVideo.video_url, '');
@@ -570,6 +620,8 @@ async function processVideoGeneration(db, log, videoGenId) {
     if (row.task_id) taskService.updateTaskError(db, row.task_id, '未返回 task_id 或 video_url');
   } catch (err) {
     const now2 = new Date().toISOString();
+    const failedSnapshot = submissions.get(db, videoGenId);
+    if (failedSnapshot?.state === 'submitting') submissions.mark(db,videoGenId,'submission_unknown','提交后连接异常，尚不能确定远端是否已受理；请先在管理器核对，禁止自动重发');
     setVideoGenFailed(db, videoGenId, err.message, now2);
     if (row && row.task_id) taskService.updateTaskError(db, row.task_id, err.message);
     log.error('Video generation error', { id: videoGenId, error: err.message });
@@ -580,10 +632,7 @@ async function processVideoGeneration(db, log, videoGenId) {
 
 function deleteById(db, log, id) {
   const now = new Date().toISOString();
-  const tenantId = getTenantId();
-  const result = tenantId
-    ? db.prepare('UPDATE video_generations SET deleted_at = ? WHERE id = ? AND organization_id = ? AND deleted_at IS NULL').run(now, Number(id), tenantId)
-    : db.prepare('UPDATE video_generations SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, Number(id));
+  const result = db.prepare('UPDATE video_generations SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL').run(now, Number(id));
   return result.changes > 0;
 }
 

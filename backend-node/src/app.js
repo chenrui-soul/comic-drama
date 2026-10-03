@@ -13,8 +13,11 @@ function createApp() {
   const db = getDb(config.database);
   const { runMigrationsAndEnsure } = require('./db/migrate.js');
   runMigrationsAndEnsure(db);
-  const doubaoBridge = require('./services/doubaoLocalBridge').configure(db);
   require('./services/universalPromptPolish').recover(db);
+  require('./services/assetPromptCompiler').recover(db);
+  require('./services/assetViewBundles').init(db);
+  require('./services/narrativeUnitPlanner').init(db);
+  require('./services/videoSubmissionService').init(db);
 
   // 厂商锁定模式：在迁移完成后同步 vendor_lock 配置
   const { applyVendorLock } = require('./services/aiConfigService');
@@ -28,6 +31,7 @@ function createApp() {
   resumeProcessingVideoGenerations(db, log);
 
   const app = express();
+  const doubaoBridge = require('./services/doubaoLocalBridge').configure(db);
   app.disable('x-powered-by');
   if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
   app.use((req, res, next) => {

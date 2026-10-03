@@ -191,9 +191,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
     const localPath = saveMediaFile(storagePath, projectDir, 'characters', files, c.image_file, 'char_imp');
     const extraImagesJson = saveExtraImages(storagePath, projectDir, 'characters', files, c.extra_image_files, 'char_extra_imp');
     const info = db.prepare(
-      `INSERT INTO characters (drama_id, name, role, description, personality, appearance, voice_style, polished_prompt, local_path, extra_images, sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(dramaId, c.name, c.role || null, c.description || null, c.personality || null, c.appearance || null, c.voice_style || null, c.polished_prompt || null, localPath, extraImagesJson, i, now, now);
+      `INSERT INTO characters (organization_id, drama_id, name, role, description, personality, appearance, voice_style, polished_prompt, local_path, extra_images, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(organizationId, dramaId, c.name, c.role || null, c.description || null, c.personality || null, c.appearance || null, c.voice_style || null, c.polished_prompt || null, localPath, extraImagesJson, i, now, now);
     charNewIds.push(info.lastInsertRowid);
   }
 
@@ -201,9 +201,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
   const episodeIdList = []; // 按顺序保存新集 id
   for (const ep of (data.episodes || [])) {
     const epInfo = db.prepare(
-      `INSERT INTO episodes (drama_id, episode_number, title, description, script_content, duration, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(dramaId, ep.episode_number || 1, ep.title || `第${ep.episode_number || 1}集`, ep.description || null, ep.script_content || null, ep.duration || 0, now, now);
+      `INSERT INTO episodes (organization_id, drama_id, episode_number, title, description, script_content, duration, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(organizationId, dramaId, ep.episode_number || 1, ep.title || `第${ep.episode_number || 1}集`, ep.description || null, ep.script_content || null, ep.duration || 0, now, now);
     episodeIdList.push(epInfo.lastInsertRowid);
   }
 
@@ -236,9 +236,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
     const localPath = saveMediaFile(storagePath, projectDir, 'scenes', files, s.image_file, 'scene_imp');
     const extraImagesJson = saveExtraImages(storagePath, projectDir, 'scenes', files, s.extra_image_files, 'scene_extra_imp');
     const info = db.prepare(
-      `INSERT INTO scenes (drama_id, episode_id, location, time, prompt, polished_prompt, local_path, extra_images, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(dramaId, epId, s.location || '', s.time || '', s.prompt || '', s.polished_prompt || null, localPath, extraImagesJson, now, now);
+      `INSERT INTO scenes (organization_id, drama_id, episode_id, location, time, prompt, polished_prompt, local_path, extra_images, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(organizationId, dramaId, epId, s.location || '', s.time || '', s.prompt || '', s.polished_prompt || null, localPath, extraImagesJson, now, now);
     sceneNewIds.push(info.lastInsertRowid);
     sceneDedupeMap.set(dedupeKey, info.lastInsertRowid);
   }
@@ -254,9 +254,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
     const localPath = saveMediaFile(storagePath, projectDir, 'props', files, p.image_file, 'prop_imp');
     const extraImagesJson = saveExtraImages(storagePath, projectDir, 'props', files, p.extra_image_files, 'prop_extra_imp');
     const pInfo = db.prepare(
-      `INSERT INTO props (drama_id, episode_id, name, type, description, prompt, local_path, extra_images, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(dramaId, epId, p.name, p.type || null, p.description || null, p.prompt || null, localPath, extraImagesJson, now, now);
+      `INSERT INTO props (organization_id, drama_id, episode_id, name, type, description, prompt, local_path, extra_images, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(organizationId, dramaId, epId, p.name, p.type || null, p.description || null, p.prompt || null, localPath, extraImagesJson, now, now);
     propNewIds.push(pInfo.lastInsertRowid);
   }
 
@@ -291,7 +291,7 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
       // 先插入分镜（首尾帧绑定ID、layout 稍后更新；image_url/local_path 由绑定逻辑设置）
       // 使用并行数组维护列名与值，确保列数与传参数量永远一致，避免“44 values for 43 columns”类错误
       const sbCols = [
-        'episode_id', 'scene_id', 'storyboard_number', 'title', 'description', 'location', 'time',
+        'organization_id', 'episode_id', 'scene_id', 'storyboard_number', 'title', 'description', 'location', 'time',
         'dialogue', 'narration', 'action', 'atmosphere', 'result', 'shot_type', 'angle', 'angle_h', 'angle_v', 'angle_s',
         'movement', 'lighting_style', 'depth_of_field', 'image_prompt', 'polished_prompt', 'video_prompt', 'duration',
         'emotion', 'emotion_intensity', 'segment_index', 'segment_title', 'continuity_snapshot', 'creation_mode',
@@ -300,6 +300,7 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
         'audio_local_path', 'narration_audio_local_path', 'created_at', 'updated_at'
       ];
       const sbVals = [
+        organizationId,
         episodeId,
         sbSceneId,
         sb.storyboard_number || 1,
@@ -375,9 +376,10 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
           const genLocalPath = saveMediaFile(storagePath, projectDir, 'images', files, gen.zip_file || gen.file, 'sb_imp_gen');
           if (genLocalPath) {
             const genInfo = db.prepare(
-              `INSERT INTO image_generations (drama_id, storyboard_id, provider, prompt, negative_prompt, model, frame_type, size, quality, status, error_msg, local_path, created_at, updated_at, completed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              `INSERT INTO image_generations (organization_id, drama_id, storyboard_id, provider, prompt, negative_prompt, model, frame_type, size, quality, status, error_msg, local_path, created_at, updated_at, completed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
             ).run(
+              organizationId,
               dramaId,
               sbId,
               gen.provider || 'imported',
@@ -405,9 +407,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
         const sbImagePath = saveMediaFile(storagePath, projectDir, 'images', files, sb.image_file, 'sb_imp');
         if (sbImagePath) {
           db.prepare(
-            `INSERT INTO image_generations (drama_id, storyboard_id, provider, prompt, status, local_path, created_at, updated_at)
-             VALUES (?, ?, 'imported', ?, 'completed', ?, ?, ?)`
-          ).run(dramaId, sbId, sb.image_prompt || '', sbImagePath, now, now);
+            `INSERT INTO image_generations (organization_id, drama_id, storyboard_id, provider, prompt, status, local_path, created_at, updated_at)
+             VALUES (?, ?, ?, 'imported', ?, 'completed', ?, ?, ?)`
+          ).run(organizationId, dramaId, sbId, sb.image_prompt || '', sbImagePath, now, now);
         }
       }
 
@@ -416,9 +418,9 @@ function _doImport(db, storagePath, files, data, d, title, metaStr, now, log) {
         const videoLocalPath = saveMediaFile(storagePath, projectDir, 'videos', files, sb.video_file, 'vid_imp');
         if (videoLocalPath) {
           db.prepare(
-            `INSERT INTO video_generations (drama_id, storyboard_id, provider, prompt, status, local_path, created_at, updated_at)
-             VALUES (?, ?, 'imported', ?, 'completed', ?, ?, ?)`
-          ).run(dramaId, sbId, sb.video_prompt || '', videoLocalPath, now, now);
+            `INSERT INTO video_generations (organization_id, drama_id, storyboard_id, provider, prompt, status, local_path, created_at, updated_at)
+             VALUES (?, ?, ?, 'imported', ?, 'completed', ?, ?, ?)`
+          ).run(organizationId, dramaId, sbId, sb.video_prompt || '', videoLocalPath, now, now);
         }
       }
 

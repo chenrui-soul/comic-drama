@@ -42,7 +42,7 @@ function routes(db, cfg, log, uploadService) {
         const out = characterLibraryService.updateCharacter(db, log, req.params.id, req.body || {});
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '保存成功' });
       } catch (err) {
@@ -55,7 +55,7 @@ function routes(db, cfg, log, uploadService) {
         const out = characterLibraryService.deleteCharacter(db, log, req.params.id);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '删除成功' });
       } catch (err) {
@@ -80,10 +80,10 @@ function routes(db, cfg, log, uploadService) {
           cfg,
           characterIds,
           body.model,
-          body.style
+          body.style, body
         );
         if (!out.ok) {
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, {
           message: '批量生成任务已提交',
@@ -103,12 +103,12 @@ function routes(db, cfg, log, uploadService) {
           cfg,
           req.params.id,
           body.model,
-          body.style
+          body.style, body
         );
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
           if (out.error === 'unauthorized') return response.notFound(res, '剧集不存在或无权限');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, {
           message: '角色四视图生成任务已提交',
@@ -146,7 +146,7 @@ function routes(db, cfg, log, uploadService) {
         const out = characterLibraryService.uploadCharacterImage(db, log, req.params.id, url);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '上传成功', url, local_path, filename: req.file.originalname, size: req.file.size });
       } catch (err) {
@@ -175,7 +175,7 @@ function routes(db, cfg, log, uploadService) {
           });
           if (!out.ok) {
             if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-            return response.badRequest(res, out.error);
+            return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
           }
         }
         const extraFields = [];
@@ -202,7 +202,7 @@ function routes(db, cfg, log, uploadService) {
         if (!out.ok) {
           if (out.error === 'library item not found') return response.notFound(res, '角色库项不存在');
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '应用成功' });
       } catch (err) {
@@ -216,7 +216,7 @@ function routes(db, cfg, log, uploadService) {
         const out = characterLibraryService.addCharacterToLibrary(db, log, req.params.id, category);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '已加入本剧角色库', item: out.item });
       } catch (err) {
@@ -229,7 +229,7 @@ function routes(db, cfg, log, uploadService) {
         const out = characterLibraryService.addCharacterToMaterialLibrary(db, log, req.params.id);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '已加入全局素材库', item: out.item });
       } catch (err) {
@@ -254,11 +254,11 @@ function routes(db, cfg, log, uploadService) {
         const body = req.body || {};
         const modelName = body.model_name || body.model || undefined;
         const style = body.style || undefined;
-        const out = await characterLibraryService.generateCharacterFourViewImage(db, log, cfg, req.params.id, modelName, style);
+        const out = await characterLibraryService.generateCharacterFourViewImage(db, log, cfg, req.params.id, modelName, style, body);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
           if (out.error === 'unauthorized') return response.notFound(res, '剧集不存在或无权限');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '四视图生成任务已提交', image_generation: out.image_generation });
       } catch (err) {
@@ -274,9 +274,9 @@ function routes(db, cfg, log, uploadService) {
         const out = await characterLibraryService.generateCharacterPromptOnly(db, log, cfg, req.params.id, modelName, style);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
-        response.success(res, { message: '提示词已生成', polished_prompt: out.polished_prompt });
+        response.success(res, { message: '提示词已生成', ...out });
       } catch (err) {
         log.error('characters generate-prompt', { error: err.message });
         response.internalError(res, err.message);
@@ -287,7 +287,7 @@ function routes(db, cfg, log, uploadService) {
         const out = await characterLibraryService.extractAppearanceFromImage(db, log, cfg, req.params.id);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '外貌描述已提取', appearance: out.appearance });
       } catch (err) {
@@ -301,7 +301,7 @@ function routes(db, cfg, log, uploadService) {
         const out = await characterLibraryService.registerCharacterJimengMaterialAsset(db, log, cfg, req.params.id);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: 'SD2 素材认证已更新', seedance2_asset: out.seedance2_asset });
       } catch (err) {
@@ -314,7 +314,7 @@ function routes(db, cfg, log, uploadService) {
         const out = await characterLibraryService.refreshCharacterJimengMaterialAsset(db, log, cfg, req.params.id);
         if (!out.ok) {
           if (out.error === 'character not found') return response.notFound(res, '角色不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '认证状态已刷新', seedance2_asset: out.seedance2_asset });
       } catch (err) {
@@ -346,7 +346,7 @@ function routes(db, cfg, log, uploadService) {
             : path.join(process.cwd(), storageLocalPath)
           : path.join(process.cwd(), 'data', 'storage');
 
-        const relDir = require('../services/storageLayout').getProjectStorageSubdir(db, charRow.drama_id) + '/characters/voice';
+        const relDir = `drama_${charRow.drama_id}/characters/voice`;
         const absDir = path.join(storageRoot, relDir);
         if (!fs.existsSync(absDir)) fs.mkdirSync(absDir, { recursive: true });
 

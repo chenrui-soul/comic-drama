@@ -1,3 +1,4 @@
+const assetCompiler = require('./assetPromptCompiler');
 const aiClient = require('./aiClient');
 const promptI18n = require('./promptI18n');
 const { mergeCfgStyleWithDrama } = require('../utils/dramaStyleMerge');
@@ -125,58 +126,8 @@ function associateWithStoryboard(db, log, storyboardId, propIds) {
  * 用文字 AI 生成道具图片提示词并保存到 props.prompt
  * 供「提取道具后异步预生成」和「重新生成提示词」按钮调用
  */
-async function generatePropPromptOnly(db, log, cfg, propId, modelName, style) {
-  const prop = getById(db, propId);
-  if (!prop) return { ok: false, error: 'prop not found' };
-
-  const dramaRow = prop.drama_id
-    ? db.prepare('SELECT style, metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(prop.drama_id)
-    : null;
-  let polishCfg = mergeCfgStyleWithDrama(cfg, dramaRow || {});
-  const so = (style && String(style).trim()) || '';
-  if (so) {
-    polishCfg = {
-      ...polishCfg,
-      style: {
-        ...polishCfg.style,
-        default_style_zh: so,
-        default_style_en: so,
-        default_style: so,
-      },
-    };
-  }
-
-  const descText = [
-    prop.name ? `道具名称：${prop.name}` : '',
-    prop.type ? `道具类型：${prop.type}` : '',
-    prop.description ? `道具描述：${prop.description}` : '',
-  ].filter(Boolean).join('\n') || prop.name || '';
-
-  const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, prop.drama_id, 'prop_image_prompt', promptI18n.getPropPolishPrompt(polishCfg));
-  const userPrompt = `请为以下道具生成**一段英文**图片提示词。\n**约束**：最终英文中不得出现人名、地名、组织名、台词或任何剧本专有信息（若下列「道具名称/描述」中含此类词，请改写为泛化物体描述）；只写已给出的可见外观信息，不要扩写未提及的细节。\n\n${descText}`;
-
-  log.info('[道具提示词] 开始生成', { prop_id: propId, name: prop.name });
-
-  let generatedPrompt;
-  try {
-    generatedPrompt = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
-      scene_key: 'prop_image_polish',
-      model: modelName || undefined,
-      max_tokens: 800,
-    });
-  } catch (err) {
-    log.error('[道具提示词] 文字AI失败', { error: err.message });
-    return { ok: false, error: err.message };
-  }
-
-  if (generatedPrompt && generatedPrompt.trim()) {
-    db.prepare('UPDATE props SET prompt = ?, updated_at = ? WHERE id = ?').run(
-      generatedPrompt.trim(), new Date().toISOString(), Number(propId)
-    );
-    log.info('[道具提示词] 生成并保存完成', { prop_id: propId, length: generatedPrompt.length });
-    return { ok: true, prompt: generatedPrompt.trim() };
-  }
-  return { ok: false, error: 'AI返回内容为空' };
+async function generatePropPromptOnly(db, log, cfg, id, modelName, style, options = {}) {
+  return assetCompiler.compile(db, log, cfg, 'prop', id, { ...options, model: modelName, style, mode: 'single' });
 }
 
 /**

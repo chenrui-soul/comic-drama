@@ -50,6 +50,7 @@ function buildUniversalSegmentUserPromptBundle(db, sbId, reqBody, opts = {}) {
     opts.universalSegmentOverride !== undefined ? opts.universalSegmentOverride : sb.universal_segment_text;
 
   const lines = [
+    chunk('VALIDATED_NARRATIVE_UNIT', JSON.stringify(require('./narrativeUnitPlanner').forStoryboard(db, sbId))),
     chunk('TITLE', sb.title),
     chunk('DESCRIPTION', sb.description),
     chunk('LOCATION', sb.location),

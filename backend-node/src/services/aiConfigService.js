@@ -63,11 +63,11 @@ function listConfigs(db, serviceType, organizationId = resolveConfigOrganization
   let sql = 'SELECT * FROM ai_service_configs WHERE deleted_at IS NULL ' + order;
   const params = [];
   if (organizationId != null) {
-    sql = 'SELECT * FROM ai_service_configs WHERE deleted_at IS NULL AND organization_id = ? ' + order;
+    sql = 'SELECT * FROM ai_service_configs WHERE deleted_at IS NULL AND (organization_id = ? OR organization_id IS NULL) ' + order;
     params.push(organizationId);
   }
   if (serviceType) {
-    sql = 'SELECT * FROM ai_service_configs WHERE deleted_at IS NULL ' + (organizationId != null ? 'AND organization_id = ? ' : '') + 'AND service_type = ? ' + order;
+    sql = 'SELECT * FROM ai_service_configs WHERE deleted_at IS NULL ' + (organizationId != null ? 'AND (organization_id = ? OR organization_id IS NULL) ' : '') + 'AND service_type = ? ' + order;
     params.length = 0;
     if (organizationId != null) params.push(organizationId);
     params.push(serviceType);
@@ -86,7 +86,7 @@ function clearOtherDefault(db, serviceType, exceptId, organizationId = resolveCo
 
 function getConfig(db, id, organizationId = resolveConfigOrganizationId(db)) {
   const sql = organizationId != null
-    ? 'SELECT * FROM ai_service_configs WHERE id = ? AND organization_id = ? AND deleted_at IS NULL'
+    ? 'SELECT * FROM ai_service_configs WHERE id = ? AND (organization_id = ? OR organization_id IS NULL) AND deleted_at IS NULL'
     : 'SELECT * FROM ai_service_configs WHERE id = ? AND deleted_at IS NULL';
   const row = organizationId != null ? db.prepare(sql).get(id, organizationId) : db.prepare(sql).get(id);
   return row ? rowToConfig(row) : null;

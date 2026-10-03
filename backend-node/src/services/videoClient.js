@@ -1,4 +1,3 @@
-const { providerPayload } = require('./privateMedia');
 // ? Go pkg/video + VideoGenerationService ????????? API??????(????)
 const fs = require('fs');
 const path = require('path');
@@ -321,8 +320,7 @@ function resolveImageInputForOmniLocalBase64(rawUrl, files_base_url, storage_loc
       const filePath = path.join(storage_local_path, relPath);
       try {
         if (fs.existsSync(filePath)) {
-          require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+          const buf = fs.readFileSync(filePath);
           const ext = path.extname(filePath).toLowerCase();
           const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[ext] || 'image/jpeg';
           log.info('[KlingOmni] 图床失败兜底 → base64', { file: filePath, video_gen_id });
@@ -510,23 +508,9 @@ function isSeedance2FamilyModel(modelName) {
  * - 1.0 Pro/Lite：仅 5 或 10
  */
 function normalizeVolcengineDuration(modelName, durationNum) {
-  const m = String(modelName || '').toLowerCase();
-  const d = Number(durationNum);
-  const safe = Number.isFinite(d) && d > 0 ? Math.round(d) : 5;
-
-  if (isSeedance2FamilyModel(m)) {
-    return Math.min(15, Math.max(4, safe));
-  }
-
-  if (/seedance[-_]?1[-_.]?5|1-5-pro|1-5-lite|251215/.test(m)) {
-    return Math.min(12, Math.max(5, safe));
-  }
-
-  if (/seedance|doubao-seedance/.test(m)) {
-    return safe <= 7 ? 5 : 10;
-  }
-
-  return Math.min(12, Math.max(5, safe));
+  const check = validateVideoDuration({ api_protocol: 'volcengine' }, modelName, durationNum);
+  if (!check.ok) throw new Error(check.message);
+  return check.value;
 }
 
 /** @deprecated 名称保留，实现与 normalizeVolcengineDuration 一致 */
@@ -561,13 +545,16 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
   const model = getModelFromConfig(config, preferredModel);
   const finalModel = normalizeVolcModel(model);
   const ratio = aspect_ratio || '16:9';
-  const effectiveDuration = normalizeVolcOmniDuration(finalModel, duration);
+  const durationCheck = validateVideoDuration(config, model, duration);
+  if (!durationCheck.ok) return { error: durationCheck.message };
+  const effectiveDuration = durationCheck.value;
 
   const refList = Array.isArray(reference_urls) ? reference_urls.filter(Boolean) : [];
   const primary = (image_url || '').trim();
   const orderedUrls = [...(primary ? [primary] : []), ...refList.filter((u) => u !== primary)];
   const maxRef = 9;
-  const urls = orderedUrls.slice(0, maxRef);
+  if (orderedUrls.length > maxRef) return { error: `火山全能最多 ${maxRef} 张参考图，请调整引用，不会自动截掉图片` };
+  const urls = orderedUrls;
 
   const body = {
     model: finalModel,
@@ -590,7 +577,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
         video_gen_id,
         i
       );
-      if (!u) continue;
+      if (!u) return { error: `参考图 ${i + 1} 无法读取，请修复引用后提交` };
       if (/localhost|127\.0\.0\.1/i.test(u) && storage_local_path && (files_base_url || '').match(/localhost|127\.0\.0\.1/i)) {
         const baseUrl = (files_base_url || '').replace(/\/$/, '');
         const afterStatic = u.split('/static/')[1] || (baseUrl ? u.replace(baseUrl + '/', '').replace(baseUrl, '') : null);
@@ -599,8 +586,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
           const filePath = path.join(storage_local_path, relPath);
           try {
             if (fs.existsSync(filePath)) {
-              require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+              const buf = fs.readFileSync(filePath);
               const ext = path.extname(filePath).toLowerCase();
               const mime =
                 { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.bmp': 'image/bmp' }[
@@ -634,8 +620,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
           const filePath = path.join(storage_local_path, relPath);
           try {
             if (fs.existsSync(filePath)) {
-              require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+              const buf = fs.readFileSync(filePath);
               const ext = path.extname(filePath).toLowerCase();
               const mime =
                 { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg' }[ext] || 'audio/mpeg';
@@ -707,7 +692,7 @@ async function callVolcengineOmniVideoApi(config, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('[VolcOmni] 创建响应', { video_gen_id, status: res.status, raw: raw.slice(0, 1000) });
@@ -801,7 +786,7 @@ async function callKlingOmniVideoApi(config, log, opts) {
       video_gen_id,
       i
     );
-    if (!resolved) continue;
+    if (!resolved) return { error: `参考图 ${i + 1} 无法读取，请修复引用后提交` };
     const item = { image_url: resolved };
     if (orderedUrls.length === 1) {
       item.type = 'first_frame';
@@ -811,7 +796,8 @@ async function callKlingOmniVideoApi(config, log, opts) {
     image_list.push(item);
   }
 
-  const textPrompt = (prompt || '').trim().slice(0, 2500);
+  const textPrompt = (prompt || '').trim();
+  if (textPrompt.length > 2500) return { error: '可灵 Omni 提示词超过 2500 字符，请手动精简，不会静默截断台词' };
   if (!textPrompt) {
     return { error: '可灵 Omni：multi_shot=false 时 prompt 不能为空' };
   }
@@ -850,7 +836,7 @@ async function callKlingOmniVideoApi(config, log, opts) {
     image_count: image_list.length,
   });
 
-  const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(providerPayload(body)) });
+  const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(body) });
   const raw = await res.text();
   log.info('[KlingOmni] 创建响应', { video_gen_id, status: res.status, raw: raw.slice(0, 800) });
 
@@ -1122,6 +1108,18 @@ function getModelFromConfig(config, preferredModel) {
   if (preferredModel && models.includes(preferredModel)) return preferredModel;
   if (config.default_model && models.includes(config.default_model)) return config.default_model;
   return models[0] || '';
+}
+
+/**
+ * Resolve the duration contract for one concrete video configuration.
+ * Explicit settings win; protocol defaults preserve the historical limits unless
+ * the configured model is known to support a longer range.
+ */
+function getVideoDurationCapability(config, modelHint) {
+  return require('./videoDurationCapability').resolve(config, modelHint, resolveVideoProtocol(config || {}, modelHint));
+}
+function validateVideoDuration(config, modelHint, duration) {
+  return require('./videoDurationCapability').validate(config, modelHint, duration, resolveVideoProtocol(config || {}, modelHint));
 }
 
 /** 仅把 http(s) 当作可下载直链，避免方舟/中转让 result_url 填入错误文案 */
@@ -1421,7 +1419,7 @@ async function callKlingVideoApi(config, log, opts) {
         const filePath = require('path').join(storage_local_path, relPath);
         try {
           if (require('fs').existsSync(filePath)) {
-            const buf = require('./privateMedia').readLocalFile(filePath);
+            const buf = require('fs').readFileSync(filePath);
             const ext = require('path').extname(filePath).toLowerCase();
             const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[ext] || 'image/jpeg';
             imageInput = 'data:' + mime + ';base64,' + buf.toString('base64');
@@ -1497,7 +1495,7 @@ async function callKlingVideoApi(config, log, opts) {
     ratio,
   });
 
-  const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(providerPayload(body)) });
+  const res = await fetch(createUrl, { method: 'POST', headers, body: JSON.stringify(body) });
   const raw = await res.text();
   log.info('[Kling视频] 原始响应', { video_gen_id, status: res.status, raw: raw.slice(0, 500) });
 
@@ -1595,8 +1593,7 @@ async function callDashScopeVideoApi(config, log, opts) {
     const filePath = path.join(storage_local_path, relPath);
     try {
       if (!fs.existsSync(filePath)) return toPublicUrl(s);
-      require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+      const buf = fs.readFileSync(filePath);
       const ext = path.extname(filePath).toLowerCase();
       const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.bmp': 'image/bmp' }[ext] || 'image/png';
       return 'data:' + mime + ';base64,' + buf.toString('base64');
@@ -1687,7 +1684,7 @@ async function callDashScopeVideoApi(config, log, opts) {
       Authorization: 'Bearer ' + (config.api_key || ''),
       'X-DashScope-Async': 'enable',
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   if (!res.ok) {
@@ -1751,8 +1748,7 @@ async function callGeminiVideoApi(config, log, opts) {
         const filePath = path.join(storage_local_path, relPath);
         try {
           if (fs.existsSync(filePath)) {
-            require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+            const buf = fs.readFileSync(filePath);
             const ext = path.extname(filePath).toLowerCase();
             mimeType = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[ext] || 'image/jpeg';
             imageB64 = buf.toString('base64');
@@ -1804,7 +1800,7 @@ async function callGeminiVideoApi(config, log, opts) {
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   if (!res.ok) {
@@ -1881,7 +1877,7 @@ async function loadViduReferenceImageBuffer(rawImgUrl, publicImgUrl, storage_loc
       const afterStatic = raw.split('/static/')[1];
       if (afterStatic) {
         const localFile = path.join(storage_local_path, afterStatic.replace(/^\//, ''));
-        if (fs.existsSync(localFile)) buf = require('./privateMedia').readLocalFile(localFile);
+        if (fs.existsSync(localFile)) buf = fs.readFileSync(localFile);
       }
     }
     if (!buf) {
@@ -2185,7 +2181,7 @@ async function callViduVideoApi(config, log, opts) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: authHeader },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('[Vidu] raw response', {
@@ -2286,7 +2282,7 @@ async function resolveVeo3ImageForApi(rawImgUrl, storage_local_path, log, video_
       const resolved = path.resolve(localFile);
       const baseResolved = path.resolve(storage_local_path);
       if (resolved.startsWith(baseResolved) && fs.existsSync(localFile)) {
-        const buf = require('./privateMedia').readLocalFile(localFile);
+        const buf = fs.readFileSync(localFile);
         const ext = path.extname(localFile).toLowerCase();
         const mime = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[ext] || 'image/jpeg';
         const proxyUrl = await uploadToImageProxy(buf, mime, log, tag);
@@ -2367,7 +2363,7 @@ async function callVeo3VideoApi(config, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('[Veo3] raw response', { status: res.status, raw: raw.slice(0, 1000), video_gen_id });
@@ -2673,7 +2669,7 @@ async function callAgnesVideoApi(db, config, log, opts) {
       : null;
   }
 
-  if (rawRefList.length > 0 && resolvedRefs.length === 0) {
+  if (rawRefList.length > 0 && resolvedRefs.length !== new Set(rawRefList).size) {
     return {
       error: 'Agnes 视频参考图须为公网 URL，本地图上传图床失败（imageproxy.zhongzhuan.chat 可能无法访问）。请检查网络/代理，或将 storage.base_url 配置为 Agnes 可访问的公网地址后重试。',
     };
@@ -2760,7 +2756,7 @@ async function callAgnesVideoApi(db, config, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('[Agnes] raw response', { status: res.status, raw: raw.slice(0, 1000), video_gen_id });
@@ -2860,7 +2856,7 @@ async function callSoraVideoApi(config, log, opts) {
         if (afterStatic && storage_local_path) {
           const localFile = path.join(storage_local_path, afterStatic.replace(/^\//, ''));
           if (fs.existsSync(localFile)) {
-            imageBuffer = require('./privateMedia').readLocalFile(localFile);
+            imageBuffer = fs.readFileSync(localFile);
             const ext = path.extname(localFile).toLowerCase();
             const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
             imageMime = mimeMap[ext] || 'image/jpeg';
@@ -3045,8 +3041,7 @@ async function resolveJimengApiImageBuffer(rawUrl, files_base_url, storage_local
       const filePath = path.join(storage_local_path, relPath);
       try {
         if (fs.existsSync(filePath)) {
-          require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+          const buf = fs.readFileSync(filePath);
           return { buffer: buf, filename: path.basename(filePath) || 'ref_' + index + '.jpg' };
         }
       } catch (e) {
@@ -3057,7 +3052,7 @@ async function resolveJimengApiImageBuffer(rawUrl, files_base_url, storage_local
   if (raw.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(raw)) {
     try {
       if (fs.existsSync(raw)) {
-        const buf = require('./privateMedia').readLocalFile(raw);
+        const buf = fs.readFileSync(raw);
         return { buffer: buf, filename: path.basename(raw) || 'ref_' + index + '.jpg' };
       }
     } catch (_) {}
@@ -3099,15 +3094,10 @@ async function callJimengAiApiVideo(config, log, opts) {
   const model = getModelFromConfig(config, opts.model);
   const seedance = isJimengFreeApiSeedanceModel(model);
   let ratio = (opts.aspect_ratio || '16:9').toString().trim().replace(/\uFF1A/g, ':');
-  let dur = opts.duration != null ? Number(opts.duration) : seedance ? 4 : 5;
-  if (!Number.isFinite(dur) || dur < 1) dur = seedance ? 4 : 5;
-  if (seedance) {
-    if (dur === 5) dur = 4;
-    dur = Math.min(15, Math.max(4, Math.round(dur)));
-    if (ratio === '1:1') ratio = '4:3';
-  } else {
-    dur = dur <= 7 ? 5 : 10;
-  }
+  const durationCheck = validateVideoDuration(config, model, opts.duration);
+  if (!durationCheck.ok) return { error: durationCheck.message };
+  const dur = durationCheck.value;
+  if (seedance && ratio === '1:1') ratio = '4:3';
 
   const resolution = (opts.resolution || '720p').toString().trim() || '720p';
   const pathSuffix = (config.endpoint || '/v1/videos/generations').toString().trim();
@@ -3323,9 +3313,10 @@ async function callDoubaoManagerVideo(config, log, opts) {
       const part = await resolveJimengApiImageBuffer(
         refs[i], opts.files_base_url, opts.storage_local_path, log, opts.video_gen_id, i
       );
-      if (part?.buffer?.length) files.push(part);
+      if (!part?.buffer?.length) throw new Error('图片内容为空');
+      files.push(part);
     } catch (error) {
-      log.warn('[DoubaoManager] 解析参考图失败', { video_gen_id: opts.video_gen_id, index: i, message: error.message });
+      return { error: `第 ${i + 1} 张参考图读取失败，已停止提交以保护 @图片映射：${error.message}` };
     }
   }
 
@@ -3347,24 +3338,24 @@ async function callDoubaoManagerVideo(config, log, opts) {
   });
   let res;
   try {
-    res = await require('./doubaoLocalBridge').fetchDoubao(config, url, fetchOpts);
+    res = await fetch(url, fetchOpts);
   } catch (error) {
     const message = error.name === 'AbortError' || error.name === 'TimeoutError' ? '请求超时' : error.message;
-    return { error: '豆包视频管理器请求失败: ' + message };
+    return { submission_unknown: true, error: '提交状态未知：豆包管理器请求中断。请先在管理器确认任务，勿重复提交。' + message };
   }
   const raw = await res.text();
   let data;
   try { data = JSON.parse(raw); } catch (_) {
-    return { error: '豆包视频管理器返回非 JSON (' + res.status + '): ' + raw.slice(0, 300) };
+    return { submission_unknown: true, error: '豆包视频管理器返回非 JSON (' + res.status + '): ' + raw.slice(0, 300) };
   }
   if (!res.ok) {
-    return { error: '豆包视频管理器 ' + res.status + ': ' + (extractDoubaoManagerError(data) || raw.slice(0, 300)) };
+    return { submission_unknown: res.status >= 500, error: '豆包视频管理器 ' + res.status + ': ' + (extractDoubaoManagerError(data) || raw.slice(0, 300)) };
   }
   const videoUrl = extractDoubaoManagerVideoUrl(data);
   if (videoUrl) return { video_url: videoUrl };
   const taskId = extractDoubaoManagerTaskId(data);
   if (taskId) return { task_id: taskId, status: extractDoubaoManagerStatus(data) || 'processing' };
-  return { error: '豆包视频管理器未返回任务 ID 或视频地址: ' + JSON.stringify(data).slice(0, 400) };
+  return { submission_unknown: true, error: '豆包视频管理器未返回任务 ID 或视频地址: ' + JSON.stringify(data).slice(0, 400) };
 }
 
 function resolveXaiVideoResolution(resolution) {
@@ -3527,7 +3518,7 @@ async function callXaiVideoApi(config, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('[xAI视频] 响应', { video_gen_id, status: res.status, head: raw.slice(0, 500) });
@@ -3741,8 +3732,7 @@ function resolveVolcClassicImage(rawUrl, files_base_url, storage_local_path, log
       const filePath = path.join(storage_local_path, rel);
       try {
         if (fs.existsSync(filePath)) {
-          require('./privateMedia').assertLocalAccess(filePath);
-          const buf = require('./privateMedia').readLocalFile(filePath);
+          const buf = fs.readFileSync(filePath);
           const ext = path.extname(filePath).toLowerCase();
           const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.bmp': 'image/bmp' }[ext] || 'image/png';
           const b64 = 'data:' + mime + ';base64,' + buf.toString('base64');
@@ -3929,7 +3919,7 @@ async function callMinimaxH3VideoApi(config, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await resHttp.text();
   log.info('[MiniMaxH3] raw response', { video_gen_id, status: resHttp.status, raw: raw.slice(0, 1000) });
@@ -3967,32 +3957,8 @@ async function callMinimaxH3VideoApi(config, log, opts) {
  * ?????? API?ChatFire/?? ? ?????
  * @returns {Promise<{ task_id?: string, video_url?: string, error?: string }>}
  */
-async function callVideoApi(db, log, opts) {
-  const {
-    prompt,
-    model: preferredModel,
-    duration,
-    aspect_ratio,
-    resolution,
-    seed,
-    camera_fixed,
-    watermark,
-    image_url,
-    first_frame_url,
-    last_frame_url,
-    first_frame_local_path,
-    last_frame_local_path,
-    files_base_url,
-    storage_local_path,
-    video_gen_id
-  } = opts;
-  const config = getDefaultVideoConfig(db, preferredModel);
-  if (!config) {
-    throw new Error('???????????AI ?????? video ?????????');
-  }
-  const model = getModelFromConfig(config, preferredModel);
-  const provider = (config.provider || '').toLowerCase();
-  const protocol = resolveVideoProtocol(config, preferredModel);
+function prepareVideoReferences(db, log, opts, config) {
+  const model = getModelFromConfig(config, opts.model), protocol = resolveVideoProtocol(config, opts.model), video_gen_id = opts.video_gen_id;
   if (db && opts.drama_id && VIDEO_PROTOCOLS_SUPPORT_SD2_ASSET_SCHEME.has(protocol)) {
     opts = applySeedance2CertifiedAssetUrlsToVideoOpts(db, log, opts);
   }
@@ -4039,6 +4005,75 @@ async function callVideoApi(db, log, opts) {
       log.info('[视频][SD2][全能] Seedance 2.0 模型但本剧暂无 active 音色参考', { video_gen_id, drama_id: opts.drama_id });
     }
   }
+
+  return opts;
+}
+
+function validateAdapterRequest(config, model, opts) {
+  const protocol = resolveVideoProtocol(config, model), duration = opts.duration;
+  let encoded = duration;
+  if (protocol === 'kling') encoded = duration <= 5 ? 5 : 10;
+  if (protocol === 'kling_omni') encoded = Number(omniDurationString(model,duration));
+  if (protocol === 'sora') encoded = duration <= 4 ? 4 : duration <= 8 ? 8 : 12;
+  if (protocol === 'gemini') encoded = Math.min(8,Math.max(5,duration));
+  if (protocol === 'vidu') encoded = Math.min(10,Math.max(1,duration));
+  if (protocol === 'xai') encoded = clampXaiDuration(duration);
+  if (protocol === 'minimax_h3') encoded = normalizeMinimaxH3Duration(duration);
+  if (protocol === 'agnes') encoded = isAgnesVideo25Model(model) ? Number(normalizeAgnesVideo25Duration(duration)) : (agnesSnapNumFrames(duration)-1)/24;
+  if (encoded !== duration) return `通道编码只支持 ${encoded} 秒，不能按请求 ${duration} 秒提交；请修改能力配置与计划`;
+  const refs = opts.reference_urls || [];
+  const count = refs.length;
+  let limit = /volcengine/.test(protocol) ? 9 : 10;
+  if (protocol === 'agnes' && isAgnesVideo25Model(model)) limit = isAgnesVideo25FlashModel(model) ? 5 : 9;
+  if (protocol === 'dashscope') limit = /wanx2\.1-vace/i.test(model) ? 3 : 5;
+  if (count > limit) return `当前通道最多 ${limit} 张参考图，已选择 ${count} 张，不会自动丢图`;
+  if (protocol === 'kling_omni' && String(opts.prompt||'').length > 2500) return '可灵 Omni 提示词超过 2500 字符，请精简后提交，不会静默截断';
+  return null;
+}
+
+async function callVideoApi(db, log, opts) {
+  const {
+    prompt,
+    model: preferredModel,
+    duration,
+    aspect_ratio,
+    resolution,
+    seed,
+    camera_fixed,
+    watermark,
+    image_url,
+    first_frame_url,
+    last_frame_url,
+    first_frame_local_path,
+    last_frame_local_path,
+    files_base_url,
+    storage_local_path,
+    video_gen_id
+  } = opts;
+  const config = opts.config_snapshot || getDefaultVideoConfig(db, preferredModel);
+  if (!config) {
+    throw new Error('???????????AI ?????? video ?????????');
+  }
+  const model = getModelFromConfig(config, preferredModel);
+  const provider = (config.provider || '').toLowerCase();
+  const protocol = resolveVideoProtocol(config, preferredModel);
+  const checkedDuration = validateVideoDuration(config, model, duration);
+  if (!checkedDuration.ok) return { error: checkedDuration.message };
+  const adapterError = validateAdapterRequest(config,model,opts);
+  if (adapterError) return { error: adapterError };
+  // Old adapters may encode a fixed slot. Reject incompatible input instead of silently changing it.
+  let adapterDuration = duration;
+  if (protocol === 'kling') adapterDuration = Number(duration <= 5 ? 5 : 10);
+  if (protocol === 'kling_omni') adapterDuration = Number(omniDurationString(model,duration));
+  if (protocol === 'sora') adapterDuration = duration <= 4 ? 4 : duration <= 8 ? 8 : 12;
+  if (protocol === 'gemini') adapterDuration = Math.min(8,Math.max(5,duration));
+  if (protocol === 'vidu') adapterDuration = Math.min(10,Math.max(1,duration));
+  if (protocol === 'xai') adapterDuration = clampXaiDuration(duration);
+  if (protocol === 'minimax_h3') adapterDuration = normalizeMinimaxH3Duration(duration);
+  if (protocol === 'agnes' && isAgnesVideo25Model(model)) adapterDuration = Number(normalizeAgnesVideo25Duration(duration));
+  if (adapterDuration !== duration) return { error: `通道编码只支持 ${adapterDuration} 秒，不能按请求 ${duration} 秒提交。请修改能力配置与计划，不会暗中转换时长` };
+
+  if (!opts.submission_snapshot) opts = prepareVideoReferences(db, log, opts, config);
   log.info('[视频] 路由协议', {
     video_gen_id,
     provider,
@@ -4274,20 +4309,8 @@ async function callVideoApi(db, log, opts) {
   // 只要有首帧或尾帧就走 i2v；旧版单图行为完全保留
   const volcTaskType = isVolc ? (hasAnyFrame ? 'i2v' : 't2v') : null;
 
-  // 火山 Seedance：按模型版本限制时长（1.5 Pro 支持 5–12 秒，非仅 5/10）
-  let effectiveDuration = dur;
-  if (isVolc) {
-    const rounded = Math.round(dur);
-    effectiveDuration = normalizeVolcengineDuration(finalModel, rounded);
-    if (effectiveDuration !== rounded) {
-      log.info('Adjusted duration for Volcengine', {
-        original: dur,
-        adjusted: effectiveDuration,
-        model: finalModel,
-        video_gen_id,
-      });
-    }
-  }
+  const effectiveDuration = duration;
+
 
   // ratio?duration ????????????????/ChatFire ???????
   const body = {
@@ -4350,7 +4373,7 @@ async function callVideoApi(db, log, opts) {
       'Content-Type': 'application/json',
       Authorization: 'Bearer ' + (config.api_key || ''),
     },
-    body: JSON.stringify(providerPayload(body)),
+    body: JSON.stringify(body),
   });
   const raw = await res.text();
   log.info('Video API raw response', { video_gen_id, status: res.status, raw: raw.slice(0, 1000) });
@@ -4508,9 +4531,12 @@ async function pollVideoTask(db, log, videoGenId, taskId, config, maxAttempts = 
       }
       const pollRound = attempt + 1;
       log.info('[poll] 发起查询', { video_gen_id: videoGenId, round: pollRound, url });
-      const res = isDoubaoManager
-        ? await require('./doubaoLocalBridge').fetchDoubao(config, url, { method: 'GET', headers })
-        : await fetch(url, { method: 'GET', headers });
+      const res = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(30000) });
+      if (db && videoGenId) {
+        db.prepare('UPDATE video_generations SET updated_at=? WHERE id=?').run(new Date().toISOString(),videoGenId);
+        const linked=db.prepare('SELECT task_id FROM video_generations WHERE id=?').get(videoGenId);
+        if(linked?.task_id) require('./taskService').updateTaskStatus(db,linked.task_id,'processing',10,'远端任务查询中，请等待…');
+      }
       const raw = await res.text();
       const bodyLogged =
         pollLogBodyMax === Infinity
@@ -4565,7 +4591,7 @@ async function pollVideoTask(db, log, videoGenId, taskId, config, maxAttempts = 
           return { error: '豆包视频管理器任务失败' + (errorMessage ? ': ' + errorMessage : '') };
         }
         if (['completed', 'succeeded', 'success', 'done', 'finished'].includes(status)) {
-          return { error: '豆包视频管理器任务完成但未返回视频地址' };
+          continue; // Manager may publish the downloadable URL after completion status.
         }
         continue;
       }
@@ -4820,14 +4846,16 @@ async function pollVideoTask(db, log, videoGenId, taskId, config, maxAttempts = 
         return { error: failMsg.slice(0, 500) };
       }
     } catch (e) {
-      if (e.code === 'DOUBAO_LOCAL_ACCESS') return { error: e.message };
       log.warn('Video poll request failed', { attempt, error: e.message });
     }
   }
-  return { error: '??????' };
+  return { pending: true, error: '暂未取得最终结果，已保留远端任务，将继续查询' };
 }
 
 module.exports = {
+  validateAdapterRequest,
+  prepareVideoReferences,
+  resolveVideoProtocol,
   getDefaultVideoConfig,
   callVideoApi,
   pollVideoTask,
@@ -4847,6 +4875,8 @@ module.exports = {
   formatVideoPostBodyForLog,
   isSeedance2FamilyModel,
   normalizeVolcengineDuration,
+  getVideoDurationCapability,
+  validateVideoDuration,
   isMinimaxH3Model,
   getMinimaxApiRoot,
   buildMinimaxH3PollUrl,

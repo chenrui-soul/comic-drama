@@ -1,8 +1,12 @@
+const submissions = require('../services/videoSubmissionService');
 const response = require('../response');
 const videoService = require('../services/videoService');
 const taskService = require('../services/taskService');
-const { normalizeAspectRatioForApi } = require('../services/videoClient');
-const { getTenantId } = require('../utils/tenantContext');
+const {
+  normalizeAspectRatioForApi,
+  getDefaultVideoConfig,
+  validateVideoDuration,
+} = require('../services/videoClient');
 
 function routes(db, log) {
   return {
@@ -18,64 +22,10 @@ function routes(db, log) {
     },
     create: (req, res) => {
       try {
-        const body = req.body || {};
-        const task = taskService.createTask(db, log, 'video_generation', String(body.drama_id || ''));
-        const now = new Date().toISOString();
-        const dramaId = Number(body.drama_id) || 0;
-        const storyboardId = body.storyboard_id != null ? Number(body.storyboard_id) : null;
-        const provider = body.provider || 'chatfire';
-        let prompt = body.prompt || '';
-        const style = (body.style || '').toString().trim();
-        if (style) {
-          const baseLower = String(prompt || '').toLowerCase();
-          const styleLower = style.toLowerCase();
-          if (!baseLower.includes(styleLower)) {
-            prompt = prompt ? `${prompt}. Style: ${style}` : `Style: ${style}`;
-          }
-        }
-        const model = body.model ?? null;
-        const duration = body.duration ?? null;
-        // 画幅：请求体归一化（全角冒号等）后写入 DB；未传则从 drama.metadata 读取并同样归一化
-        let aspectRatio = null;
-        if (body.aspect_ratio != null && String(body.aspect_ratio).trim() !== '') {
-          aspectRatio = normalizeAspectRatioForApi(body.aspect_ratio);
-        }
-        if (!aspectRatio && dramaId) {
-          try {
-            const dramaRow = db.prepare('SELECT metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(dramaId);
-            if (dramaRow && dramaRow.metadata) {
-              const meta = typeof dramaRow.metadata === 'string' ? JSON.parse(dramaRow.metadata) : dramaRow.metadata;
-              if (meta && meta.aspect_ratio) aspectRatio = normalizeAspectRatioForApi(meta.aspect_ratio);
-            }
-          } catch (_) {}
-        }
-        const resolution = body.resolution ?? null;
-        const seed = body.seed != null ? Number(body.seed) : null;
-        const cameraFixed = body.camera_fixed != null ? (body.camera_fixed ? 1 : 0) : null;
-        const watermark = body.watermark != null ? (body.watermark ? 1 : 0) : 0;
-        const imageUrl = body.image_url ?? null;
-        // 首尾帧：支持 URL 或本地路径（sxy，存到 first_frame_url / last_frame_url）
-        const firstFrameUrl = body.first_frame_url ?? body.first_frame_local_path ?? null;
-        const lastFrameUrl = body.last_frame_url ?? body.last_frame_local_path ?? null;
-        // 多图模式：sxy，存 JSON 数组到 reference_image_urls
-        const refImagesJson =
-          body.reference_image_urls && Array.isArray(body.reference_image_urls)
-            ? JSON.stringify(body.reference_image_urls.slice(0, 10))
-            : null;
-        db.prepare(
-          `INSERT INTO video_generations (organization_id, drama_id, storyboard_id, provider, prompt, model, duration, aspect_ratio, resolution, seed, camera_fixed, watermark, image_url, first_frame_url, last_frame_url, reference_image_urls, status, task_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?)`
-        ).run(getTenantId() || null, dramaId, storyboardId, provider, prompt, model, duration, aspectRatio, resolution, seed, cameraFixed, watermark, imageUrl, firstFrameUrl, lastFrameUrl, refImagesJson, task.id, now, now);
-        const videoGenId = db.prepare('SELECT last_insert_rowid() as id').get().id;
-        setImmediate(() => {
-          videoService.processVideoGeneration(db, log, videoGenId);
-        });
-        const item = videoService.getById(db, videoGenId);
-        response.created(res, item || { id: videoGenId, task_id: task.id, status: 'processing' });
-      } catch (err) {
-        log.error('videos create', { error: err.message });
-        response.internalError(res, err.message);
-      }
+        const job = submissions.enqueue(db, log, req.body || {});
+        if (!job.duplicate) setImmediate(() => videoService.processVideoGeneration(db, log, job.id));
+        response.created(res, { ...videoService.getById(db, job.id), duplicate: job.duplicate });
+      } catch (err) { response.error(res, err.status || 500, 'VIDEO_SUBMISSION_ERROR', err.message); }
     },
     get: (req, res) => {
       try {
@@ -113,20 +63,29 @@ function routes(db, log) {
     },
     fromImage: (req, res) => {
       try {
-        const task = taskService.createTask(db, log, 'video_generation', req.params.image_gen_id);
-        response.success(res, { task_id: task.id });
-      } catch (err) {
-        log.error('videos fromImage', { error: err.message });
-        response.internalError(res, err.message);
-      }
+        const image = db.prepare('SELECT * FROM image_generations WHERE id=? AND deleted_at IS NULL').get(Number(req.params.image_gen_id));
+        if (!image) return response.notFound(res, '图片不存在');
+        const job = submissions.enqueue(db, log, { ...req.body, drama_id: image.drama_id, storyboard_id: image.storyboard_id, image_url: image.image_url || image.local_path });
+        if (!job.duplicate) setImmediate(() => videoService.processVideoGeneration(db, log, job.id));
+        response.success(res, videoService.getById(db, job.id));
+      } catch (err) { response.error(res, err.status || 500, 'VIDEO_SUBMISSION_ERROR', err.message); }
     },
     episodeBatch: (req, res) => {
       try {
-        response.success(res, []);
-      } catch (err) {
-        log.error('videos episode batch', { error: err.message });
-        response.internalError(res, err.message);
-      }
+        const episode = db.prepare('SELECT * FROM episodes WHERE id=? AND deleted_at IS NULL').get(Number(req.params.episode_id));
+        if (!episode) return response.notFound(res, '剧集不存在');
+        const items = req.body?.videos;
+        if (!Array.isArray(items) || !items.length || items.length > 200) return response.badRequest(res, '请提供 videos 数组，每条包含分镜、提示词和时长，最多 200 条');
+        const bodies = items.map(item => ({ ...item, drama_id: episode.drama_id }));
+        for (const body of bodies) {
+          const sb = db.prepare('SELECT episode_id FROM storyboards WHERE id=? AND deleted_at IS NULL').get(Number(body.storyboard_id));
+          if (Number(sb?.episode_id) !== Number(episode.id)) return response.badRequest(res, '批量请求包含其他剧集的分镜');
+          submissions.prepare(db, body);
+        }
+        const jobs = db.transaction(() => bodies.map(body => submissions.enqueue(db, log, body)))();
+        for (const job of jobs) if (!job.duplicate) setImmediate(() => videoService.processVideoGeneration(db, log, job.id));
+        response.success(res, jobs.map(job => videoService.getById(db, job.id)));
+      } catch (err) { response.error(res, err.status || 500, 'VIDEO_SUBMISSION_ERROR', err.message); }
     },
   };
 }

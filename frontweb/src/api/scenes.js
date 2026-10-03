@@ -1,14 +1,15 @@
 import request from '@/utils/request'
 
 export const sceneAPI = {
+  promptStatus(id, mode) { return request.get(`/asset-prompts/scene/${id}`, { params: { mode } }) },
   get(sceneId) {
     return request.get(`/scenes/${sceneId}`)
   },
   list(dramaId) {
     return request.get(`/dramas/${dramaId}/scenes`)
   },
-  generatePrompt(sceneId, model, style, mode) {
-    return request.post(`/scenes/${sceneId}/generate-prompt`, { model, style, mode })
+  generatePrompt(sceneId, model, style, mode, options = {}) {
+    return request.post(`/scenes/${sceneId}/generate-prompt`, { model, style, mode, ...options })
   },
   create(data) {
     return request.post('/scenes', data)

@@ -6,6 +6,8 @@ const {
   extractDoubaoManagerVideoUrl,
   extractDoubaoManagerStatus,
   extractDoubaoManagerError,
+  getVideoDurationCapability,
+  validateVideoDuration,
 } = require('../src/services/videoClient');
 
 test('extracts task IDs from common submit response shapes', () => {
@@ -43,4 +45,22 @@ test('normalizes status and failure messages', () => {
   assert.equal(extractDoubaoManagerStatus({ state: 'running' }), 'running');
   assert.equal(extractDoubaoManagerError({ error: { message: 'render failed' } }), 'render failed');
   assert.equal(extractDoubaoManagerError({ data: { error: 'quota exceeded' } }), 'quota exceeded');
+});
+
+test('supports an explicitly configured 15/30 second manager contract', () => {
+  const config = {
+    provider: 'doubao_manager',
+    api_protocol: 'doubao_manager',
+    model: ['Seedance 2.5'],
+    settings: JSON.stringify({ video_duration: { mode: 'fixed', allowed_seconds: [15, 30] } }),
+  };
+  assert.deepEqual(getVideoDurationCapability(config, 'Seedance 2.5').allowed_seconds, [15, 30]);
+  assert.equal(validateVideoDuration(config, 'Seedance 2.5', 30).ok, true);
+  assert.equal(validateVideoDuration(config, 'Seedance 2.5', 25).ok, false);
+});
+
+test('keeps an unconfigured manager on the historical 15 second limit', () => {
+  const config = { provider: 'doubao_manager', api_protocol: 'doubao_manager', model: ['Seedance 2.0'] };
+  assert.equal(getVideoDurationCapability(config, 'Seedance 2.0').max, 15);
+  assert.equal(validateVideoDuration(config, 'Seedance 2.0', 30).ok, false);
 });

@@ -254,9 +254,9 @@ function insertBeforeStoryboard(db, log, targetId) {
 
   const now = new Date().toISOString();
   const info = db.prepare(
-    `INSERT INTO storyboards (episode_id, storyboard_number, segment_index, segment_title, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'pending', ?, ?)`
-  ).run(target.episode_id, target.storyboard_number, target.segment_index ?? null, target.segment_title ?? null, now, now);
+    `INSERT INTO storyboards (organization_id, episode_id, storyboard_number, segment_index, segment_title, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`
+  ).run(getTenantId() || 1, target.episode_id, target.storyboard_number, target.segment_index ?? null, target.segment_title ?? null, now, now);
 
   log.info('Storyboard inserted before', { new_id: info.lastInsertRowid, before_id: targetId });
   return getStoryboardById(db, info.lastInsertRowid);

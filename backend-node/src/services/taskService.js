@@ -116,7 +116,16 @@ function failOrphanedAsyncTasksOnStartup(db, log) {
     `SELECT id, type, status, resource_id, payload FROM async_tasks
      WHERE status IN ('pending', 'processing') AND deleted_at IS NULL`
   ).all();
-  const orphaned = rows.filter((row) => !row.payload);
+  let activeVideoTasks = new Set();
+  try {
+    activeVideoTasks = new Set(db.prepare(
+      `SELECT task_id FROM video_generations
+       WHERE task_id IS NOT NULL AND status IN ('pending', 'processing') AND provider_task_id IS NOT NULL`
+    ).all().map((row) => row.task_id));
+  } catch (_) {
+    // Older test databases and installations may not have video_generations yet.
+  }
+  const orphaned = rows.filter((row) => !row.payload && !activeVideoTasks.has(row.id));
   if (!orphaned.length) return 0;
   log.warn('Failing orphaned async tasks after startup', { count: orphaned.length });
   for (const row of orphaned) {
@@ -128,7 +137,7 @@ function failOrphanedAsyncTasksOnStartup(db, log) {
       previous_status: row.status,
     });
   }
-  return rows.length;
+  return orphaned.length;
 }
 
 module.exports = {

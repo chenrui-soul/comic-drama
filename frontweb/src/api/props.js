@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 
 export const propAPI = {
+  promptStatus(id, mode) { return request.get(`/asset-prompts/prop/${id}`, { params: { mode } }) },
   get(id) {
     return request.get(`/props/${id}`)
   },
@@ -13,12 +14,12 @@ export const propAPI = {
   update(id, data) {
     return request.put(`/props/${id}`, data)
   },
-  generatePrompt(id, model, style) {
-    return request.post(`/props/${id}/generate-prompt`, { model, style })
+  generatePrompt(id, model, style, options = {}) {
+    return request.post(`/props/${id}/generate-prompt`, { model, style, ...options })
   },
-  generateImage(id, model, style) {
-    const body = { model, style }
-    if (body.model == null && body.style == null) return request.post(`/props/${id}/generate`)
+  generateImage(id, model, style, options = {}) {
+    const body = { model, style, ...options }
+    if (Object.keys(options).length === 0 && body.model == null && body.style == null) return request.post(`/props/${id}/generate`)
     return request.post(`/props/${id}/generate`, body)
   },
   extractFromScript(episodeId) {

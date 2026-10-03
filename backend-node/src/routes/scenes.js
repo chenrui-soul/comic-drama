@@ -18,14 +18,15 @@ function routes(db, log, cfg) {
     generatePrompt: async (req, res) => {
       try {
         const body = req.body || {};
-        const out = await sceneService.generateScenePromptOnly(
-          db, log, cfg, req.params.scene_id, body.model || undefined, body.style || undefined
+        const generate = body.mode === 'single' ? sceneService.generateSceneSinglePromptOnly : sceneService.generateScenePromptOnly;
+        const out = await generate(
+          db, log, cfg, req.params.scene_id, body.model || undefined, body.style || undefined, body
         );
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
-        response.success(res, { message: '提示词已生成', polished_prompt: out.polished_prompt });
+        response.success(res, { message: '提示词已生成', ...out });
       } catch (err) {
         log.error('scenes generatePrompt', { error: err.message });
         response.internalError(res, err.message);
@@ -36,7 +37,7 @@ function routes(db, log, cfg) {
         const out = await sceneService.extractSceneFromImage(db, log, cfg, req.params.scene_id);
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '场景描述已提取', prompt: out.prompt });
       } catch (err) {
@@ -91,13 +92,14 @@ function routes(db, log, cfg) {
         const body = req.body || {};
         const sceneId = body.scene_id != null ? Number(body.scene_id) : null;
         if (sceneId == null) return response.badRequest(res, '缺少 scene_id');
-        const out = await sceneService.generateSceneFourViewImage(
-          db, log, cfg, sceneId, body.model || undefined, body.style || undefined
+        const generate = (body.mode === 'single' || body.use_quad_grid === false) ? sceneService.generateSceneSingleImage : sceneService.generateSceneFourViewImage;
+        const out = await generate(
+          db, log, cfg, sceneId, body.model || undefined, body.style || undefined, body
         );
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
           if (out.error === 'unauthorized') return response.notFound(res, '剧集不存在或无权限');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, {
           message: '场景四视图生成任务已提交',
@@ -114,7 +116,7 @@ function routes(db, log, cfg) {
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
           if (out.error === 'unauthorized') return response.forbidden(res, '无权限');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '已加入本剧场景库', item: out.item });
       } catch (err) {
@@ -127,7 +129,7 @@ function routes(db, log, cfg) {
         const out = sceneLibraryService.addSceneToMaterialLibrary(db, log, req.params.scene_id);
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '已加入全局素材库', item: out.item });
       } catch (err) {
@@ -140,11 +142,11 @@ function routes(db, log, cfg) {
         const body = req.body || {};
         const modelName = body.model_name || body.model || undefined;
         const style = body.style || undefined;
-        const out = await sceneService.generateSceneFourViewImage(db, log, cfg, req.params.scene_id, modelName, style);
+        const out = await sceneService.generateSceneFourViewImage(db, log, cfg, req.params.scene_id, modelName, style, body);
         if (!out.ok) {
           if (out.error === 'scene not found') return response.notFound(res, '场景不存在');
           if (out.error === 'unauthorized') return response.notFound(res, '剧集不存在或无权限');
-          return response.badRequest(res, out.error);
+          return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
         }
         response.success(res, { message: '场景四视图生成任务已提交', image_generation: out.image_generation });
       } catch (err) {

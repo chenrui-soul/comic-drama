@@ -85,7 +85,9 @@ class DoubaoLocalBridge {
     if (!a?.enabled || !this.isEnabled(id)) return { enabled: false, job: null };
     for (const job of this.jobs.values()) if (job.configId === Number(id) && !job.clientId) {
       job.clientId = clientId;
-      return { enabled: true, job: { id: job.id, ...job.payload } };
+      const result = { id: job.id, ...job.payload };
+      Object.defineProperty(result, 'bodyReady', { value: job.bodyReady, enumerable: false });
+      return { enabled: true, job: result };
     }
     return { enabled: true, job: null };
   }
@@ -96,7 +98,16 @@ class DoubaoLocalBridge {
     if (previous && previous.id !== clientId && this.now()-previous.seen < 45000) return res.status(409).json({ error: '已有豆包管理工具连接此配置' });
     this.clients.set(id, { id: clientId, seen: this.now(), managerOnline: managerOnline === true });
     const old = this.waiters.get(id); if (old) old.send();
-    const send = () => { clearTimeout(timer); if (this.waiters.get(id)?.send === send) this.waiters.delete(id); if (!res.destroyed) res.json(this.take(id, clientId)); };
+    const send = async () => {
+      clearTimeout(timer);
+      if (this.waiters.get(id)?.send === send) this.waiters.delete(id);
+      if (res.destroyed) return;
+      const result = this.take(id, clientId);
+      if (result.job?.bodyReady) {
+        try { await result.job.bodyReady; } catch (_) { return; }
+      }
+      if (!res.destroyed) res.json(result);
+    };
     const timer = setTimeout(send, this.pollMs);
     this.waiters.set(id, { send });
     res.once('close', () => { clearTimeout(timer); if (this.waiters.get(id)?.send === send) this.waiters.delete(id); });
@@ -126,15 +137,26 @@ class DoubaoLocalBridge {
     const u = new URL(url), method = options.method || 'GET';
     if (u.origin !== localOrigin(row.base_url) || u.search || u.hash || !allowedRequest(method, u.pathname)) throw bridgeError('本地连接只允许豆包视频提交、任务查询和健康检查');
     if ([...this.jobs.values()].filter(j=>j.configId===row.id).length >= 8) throw bridgeError('本地连接任务繁忙，请稍后重试');
-    const req = new Request(url, options), bytes = Buffer.from(await req.arrayBuffer());
-    if (bytes.length > MAX_BODY || this.bytes + bytes.length > MAX_TOTAL) throw bridgeError('本地连接参考图过大，请减少图片数量或大小');
-    // Recheck after asynchronous multipart serialization; the owner may have switched off access.
-    if (!this.isEnabled(row.id)) throw bridgeError('豆包本地访问已关闭');
+    const req = new Request(url, options);
+    // Enqueue before undici finishes multipart encoding; the connector waits for bodyReady.
     return new Promise((resolve,reject)=>{
       const id = crypto.randomUUID();
-      const job = { id, configId: row.id, org, resolve, reject, size: bytes.length, payload: { method, path:u.pathname, contentType:req.headers.get('content-type'), body:bytes.toString('base64') } };
+      const job = { id, configId: row.id, org, resolve, reject, size: 0,
+        payload: { method, path:u.pathname, contentType:req.headers.get('content-type'), body:'' } };
+      job.bodyReady = req.arrayBuffer().then((buffer) => {
+        const bytes = Buffer.from(buffer);
+        if (bytes.length > MAX_BODY || this.bytes + bytes.length > MAX_TOTAL) throw bridgeError('本地连接参考图过大，请减少图片数量或大小');
+        if (!this.isEnabled(row.id)) throw bridgeError('豆包本地访问已关闭');
+        job.size = bytes.length;
+        job.payload.body = bytes.toString('base64');
+        this.bytes += bytes.length;
+        return job.payload.body;
+      }).catch((error) => {
+        if (this.jobs.has(id)) this.finish(job, error.message || '本地请求正文读取失败');
+        throw error;
+      });
       job.timer = setTimeout(()=>this.finish(job,'本地请求超时；为避免重复生成，未自动重发提交请求'),this.timeoutMs);
-      this.jobs.set(id,job); this.bytes += bytes.length; this.wake(row.id);
+      this.jobs.set(id,job); this.wake(row.id);
     });
   }
   close() { for(const j of [...this.jobs.values()]) this.finish(j,'连接服务已停止'); for(const w of this.waiters.values()) w.send(); }

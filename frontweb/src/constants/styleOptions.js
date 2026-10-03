@@ -1,3 +1,4 @@
+import renderStyles from '../../../backend-node/src/constants/assetRenderStyles.json' with { type: 'json' }
 /** 自定义画风：dramas.style 固定短标识，完整描述写在 metadata.style_prompt_* */
 export const CUSTOM_STYLE_VALUE = 'custom'
 
@@ -269,7 +270,7 @@ export function getStylePromptEn(val) {
   // 无第二参数时无法拿到用户描述；勿把短标识 custom 当提示词
   if (v === CUSTOM_STYLE_VALUE) return undefined
   const opt = findStyleOption(v)
-  if (opt) return opt.promptEn || opt.prompt || v
+  if (opt) return renderStyles[v]?.[1] || opt.promptEn || opt.prompt || v
   return v
 }
 
@@ -283,7 +284,7 @@ export function getStylePromptZh(val) {
   if (!v) return undefined
   if (v === CUSTOM_STYLE_VALUE) return undefined
   const opt = findStyleOption(v)
-  if (opt) return opt.prompt || opt.promptEn || v
+  if (opt) return renderStyles[v]?.[0] || opt.prompt || opt.promptEn || v
   return v
 }
 
@@ -302,8 +303,8 @@ export function stylePromptMetadataForSave(styleValue, customPrompt) {
   const opt = findStyleOption(v)
   if (!opt) return { style_prompt_zh: v, style_prompt_en: v }
   return {
-    style_prompt_zh: opt.prompt || opt.promptEn || '',
-    style_prompt_en: opt.promptEn || opt.prompt || '',
+    style_prompt_zh: renderStyles[v]?.[0] || opt.prompt || opt.promptEn || '',
+    style_prompt_en: renderStyles[v]?.[1] || opt.promptEn || opt.prompt || '',
   }
 }
 

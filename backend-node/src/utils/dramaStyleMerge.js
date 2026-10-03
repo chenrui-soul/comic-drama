@@ -1,6 +1,6 @@
 'use strict';
 
-const { resolveStylePreset } = require('../constants/generationStylePresets');
+const { resolveStylePreset, resolveRenderStyle } = require('../constants/generationStylePresets');
 
 /**
  * 从剧集行解析画风：优先使用 metadata 里由前端写入的完整提示词（与 styleOptions 一致），
@@ -74,7 +74,12 @@ function mergeCfgStyleWithDrama(cfg, dramaRow) {
       base.default_style = legacy;
     }
   }
-  return { ...cfg, style: expandStyleSlotIfPresetKey(base) };
+  const expanded = expandStyleSlotIfPresetKey(base);
+  for (const key of ['default_style_zh','default_style_en','default_style']) {
+    const render = resolveRenderStyle(expanded[key]);
+    if (render) expanded[key] = key === 'default_style_zh' ? render.zh : render.en;
+  }
+  return { ...cfg, style: expanded };
 }
 
 /**
@@ -83,13 +88,13 @@ function mergeCfgStyleWithDrama(cfg, dramaRow) {
 function resolvedStreamStyleFromDrama(styleParam, dramaRow) {
   const s = (styleParam && String(styleParam).trim()) || '';
   if (s && s !== 'custom') {
-    const p = resolveStylePreset(s);
+    const p = resolveRenderStyle(s);
     return p ? (p.en || p.zh) : s;
   }
   const { zh, en, legacy } = styleFieldsFromDramaRow(dramaRow);
-  if (en || zh) return en || zh;
+  if (en || zh) return resolveRenderStyle(en || zh)?.en || en || zh;
   if (legacy && legacy !== 'custom') {
-    const p = resolveStylePreset(legacy);
+    const p = resolveRenderStyle(legacy);
     return p ? (p.en || p.zh) : legacy;
   }
   return 'realistic';

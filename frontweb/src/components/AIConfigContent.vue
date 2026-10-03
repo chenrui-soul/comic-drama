@@ -126,16 +126,74 @@
       </el-tab-pane>
       <el-tab-pane v-if="!platformManaged" label="生成设置" name="generation">
         <div class="tab-content generation-settings">
+          <div class="gs-section-title">⚡ 一键生成并发设置</div>
+          <p class="gs-desc">控制「一键生成视频」和「补全并生成」流水线中，各类任务同时并行生成的数量。并发数越高速度越快，但过高可能触发 API 限流（429 错误）。建议根据你的 API 额度选择。</p>
+
+          <div class="gs-row">
+            <span class="gs-label">图片并发数</span>
+            <el-select
+              v-model="genConcurrencyInput"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入并发数"
+              style="width: 180px"
+              @change="onConcurrencyChange"
+            >
+              <el-option label="1（串行，最稳定）" :value="1" />
+              <el-option label="2" :value="2" />
+              <el-option label="3（默认）" :value="3" />
+              <el-option label="5" :value="5" />
+              <el-option label="8" :value="8" />
+              <el-option label="10" :value="10" />
+            </el-select>
+            <span class="gs-unit">个任务同时生成</span>
+          </div>
+
+          <div class="gs-row" style="margin-top: 10px">
+            <span class="gs-label">视频并发数</span>
+            <el-select
+              v-model="genVideoConcurrencyInput"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入并发数"
+              style="width: 180px"
+              @change="onVideoConcurrencyChange"
+            >
+              <el-option label="1（串行，最稳定）" :value="1" />
+              <el-option label="2" :value="2" />
+              <el-option label="3（默认）" :value="3" />
+              <el-option label="5" :value="5" />
+              <el-option label="8" :value="8" />
+              <el-option label="10" :value="10" />
+            </el-select>
+            <span class="gs-unit">个任务同时生成</span>
+          </div>
+
+          <div style="margin-top: 14px">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="genSettingSaving"
+              @click="saveGenerationSettings"
+            >保存</el-button>
+          </div>
           <el-alert
-            title="批量图片和视频不设置前端并发上限"
-            type="info"
+            v-if="genSettingSaved"
+            type="success"
+            title="已保存"
             :closable="false"
             show-icon
-          >
-            <template #default>
-              流水线会一次提交当前批次的全部任务，由后台任务队列和 AI 服务商负责调度；失败任务仍按队列规则自动重试。
-            </template>
-          </el-alert>
+            style="margin-top: 12px; width: fit-content"
+          />
+          <div class="gs-tip-box">
+            <div class="gs-tip-title">📌 适用范围</div>
+            <ul class="gs-tip-list">
+              <li>图片并发：步骤 2 角色图、步骤 4 场景图、步骤 6 分镜图</li>
+              <li>视频并发：步骤 7 分镜视频</li>
+            </ul>
+          </div>
         </div>
       </el-tab-pane>
       <el-tab-pane v-if="!platformManaged" label="SD2 资产管理" name="sd2_assets">
@@ -748,6 +806,40 @@ input_reference = (图片文件，可选)</pre>
           </el-select>
           <p class="field-tip">该配置被选为「默认」时，生成故事/图片/视频将使用此处指定的模型。</p>
         </el-form-item>
+        <el-form-item v-if="form.service_type === 'video'">
+          <template #label>
+            <span class="form-label-tip">视频时长能力
+              <el-tooltip placement="top" popper-class="cfg-tip-popper">
+                <template #content>
+                  <div class="cfg-tip-content">
+                    只有接口已确认支持长时长时才选择 30 秒。自动模式保留该协议的历史默认限制。<br>
+                    范围模式支持 4–30 秒等连续时长；固定档位适合只接受 15、30 秒的会员管理工具。
+                  </div>
+                </template>
+                <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </span>
+          </template>
+          <el-radio-group v-model="form.video_duration_mode" size="small">
+            <el-radio-button label="auto">按协议默认</el-radio-button>
+            <el-radio-button label="range">范围</el-radio-button>
+            <el-radio-button label="fixed">固定档位</el-radio-button>
+          </el-radio-group>
+          <div v-if="form.video_duration_mode === 'range'" class="video-duration-capability-row">
+            <el-input-number v-model="form.video_duration_min" :min="1" :max="120" controls-position="right" />
+            <span>至</span>
+            <el-input-number v-model="form.video_duration_max" :min="1" :max="120" controls-position="right" />
+            <span>秒，步长</span>
+            <el-input-number v-model="form.video_duration_step" :min="1" :max="30" controls-position="right" />
+            <span>秒</span>
+          </div>
+          <el-input
+            v-if="form.video_duration_mode === 'fixed'"
+            v-model="form.video_duration_fixed"
+            placeholder="例如：15,30"
+          />
+          <p class="field-tip">此设置同时用于前端选项和后端提交校验；不确定时保持“按协议默认”。</p>
+        </el-form-item>
         <el-form-item v-if="isDeepSeekOfficialForm">
           <template #label>
             <span class="form-label-tip">思考模式
@@ -999,8 +1091,9 @@ input_reference = (图片文件，可选)</pre>
     <el-dialog v-model="testVisible" title="测试连接" width="420px">
       <p v-if="testResult === null">正在测试…</p>
       <template v-else-if="testResult">
+        <el-alert v-if="testDiagnostic" type="info" :title="testDiagnostic" :closable="false" show-icon />
         <el-alert
-          v-if="testServiceType === 'image' || testServiceType === 'storyboard_image' || testServiceType === 'video'"
+          v-else-if="testServiceType === 'image' || testServiceType === 'storyboard_image' || testServiceType === 'video'"
           type="success"
           title="连接成功"
           description="API Key 有效，网络已连通。提示：测试仅验证 Key 合法性，不实际生成图片/视频，模型名填错、账号未开通该功能或配额不足时实际生成仍可能报错。"
@@ -1055,6 +1148,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, MagicStick, QuestionFilled, Download, Upload, Delete, ChatDotRound, Picture, Film, VideoCamera, Key, Microphone, Folder } from '@element-plus/icons-vue'
 import { aiAPI } from '@/api/ai'
+import { generationSettingsAPI } from '@/api/prompts'
 import SceneModelMap from '@/components/SceneModelMap.vue'
 import Sd2AssetManagement from '@/components/Sd2AssetManagement.vue'
 import RuleSkillManager from '@/components/RuleSkillManager.vue'
@@ -1079,6 +1173,53 @@ const dramaId = computed(() => props.dramaId)
 const activeTab = ref(props.initialTab)
 const importFileRef = ref(null)
 
+// ---- 生成设置 ----
+const genConcurrencyInput = ref(3)
+const genVideoConcurrencyInput = ref(3)
+const genSettingSaving = ref(false)
+const genSettingSaved = ref(false)
+
+async function loadGenerationSettings() {
+  try {
+    const res = await generationSettingsAPI.get()
+    genConcurrencyInput.value = res?.concurrency ?? 3
+    genVideoConcurrencyInput.value = res?.video_concurrency ?? 3
+  } catch (_) {}
+}
+
+function onConcurrencyChange(val) {
+  const n = Number(val)
+  if (!isNaN(n) && n >= 1) genConcurrencyInput.value = Math.min(20, Math.max(1, Math.round(n)))
+}
+
+function onVideoConcurrencyChange(val) {
+  const n = Number(val)
+  if (!isNaN(n) && n >= 1) genVideoConcurrencyInput.value = Math.min(20, Math.max(1, Math.round(n)))
+}
+
+async function saveGenerationSettings() {
+  const n = Number(genConcurrencyInput.value)
+  const nv = Number(genVideoConcurrencyInput.value)
+  if (isNaN(n) || n < 1 || n > 20) {
+    ElMessage.warning('图片并发数请填写 1-20 之间的整数')
+    return
+  }
+  if (isNaN(nv) || nv < 1 || nv > 20) {
+    ElMessage.warning('视频并发数请填写 1-20 之间的整数')
+    return
+  }
+  genSettingSaving.value = true
+  genSettingSaved.value = false
+  try {
+    await generationSettingsAPI.update({ concurrency: Math.round(n), video_concurrency: Math.round(nv) })
+    genSettingSaved.value = true
+    setTimeout(() => { genSettingSaved.value = false }, 2000)
+  } catch (e) {
+    ElMessage.error('保存失败：' + (e?.message || ''))
+  } finally {
+    genSettingSaving.value = false
+  }
+}
 const loading = ref(false)
 const list = ref([])
 const selectedRows = ref([])
@@ -1114,6 +1255,11 @@ const form = ref({
   default_model: '',
   deepseek_thinking: 'disabled',
   deepseek_reasoning_effort: 'high',
+  video_duration_mode: 'auto',
+  video_duration_min: 4,
+  video_duration_max: 15,
+  video_duration_step: 1,
+  video_duration_fixed: '15,30',
   priority: 0,
   is_default: false,
   // 可灵 Omni 官方 AK/SK（存 settings，后端生成 JWT）
@@ -1213,6 +1359,7 @@ const testVisible = ref(false)
 const testResult = ref(null)
 const testServiceType = ref('')
 const testError = ref('')
+const testDiagnostic = ref('')
 const oneKeyTongyiVisible = ref(false)
 const oneKeyTongyiKey = ref('')
 const oneKeyTongyiSaving = ref(false)
@@ -1707,6 +1854,11 @@ function resetForm() {
     default_model: '',
     deepseek_thinking: 'disabled',
     deepseek_reasoning_effort: 'high',
+    video_duration_mode: 'auto',
+    video_duration_min: 4,
+    video_duration_max: 15,
+    video_duration_step: 1,
+    video_duration_fixed: '15,30',
     priority: 0,
     is_default: true,  // 新增时默认勾选「设为默认」，便于理解当前会使用哪条配置
     voice_id: '',
@@ -1735,6 +1887,13 @@ function openEdit(row) {
   let kling_secret_key = ''
   let kling_secret_key_base64 = false
   const deepseekSettings = resolveDeepSeekFormSettings(row)
+  const durationSettings = parseSettings(row?.settings).video_duration
+    || parseSettings(row?.settings).duration_capability
+    || {}
+  const durationMode = String(durationSettings.mode || '').toLowerCase()
+  const fixedValues = Array.isArray(durationSettings.allowed_seconds)
+    ? durationSettings.allowed_seconds.join(',')
+    : '15,30'
   if (row.settings) {
     try {
       const s = JSON.parse(row.settings)
@@ -1762,6 +1921,11 @@ function openEdit(row) {
     default_model: defaultInList ? row.default_model : (modelList[0] || ''),
     deepseek_thinking: deepseekSettings.thinking,
     deepseek_reasoning_effort: deepseekSettings.effort,
+    video_duration_mode: durationMode === 'fixed' || durationMode === 'range' ? durationMode : 'auto',
+    video_duration_min: Number(durationSettings.min_seconds) > 0 ? Number(durationSettings.min_seconds) : 4,
+    video_duration_max: Number(durationSettings.max_seconds) > 0 ? Number(durationSettings.max_seconds) : 15,
+    video_duration_step: Number(durationSettings.step_seconds) > 0 ? Number(durationSettings.step_seconds) : 1,
+    video_duration_fixed: fixedValues,
     priority: row.priority ?? 0,
     is_default: !!row.is_default,
     voice_id,
@@ -1807,6 +1971,25 @@ async function submit() {
       else delete baseS.kling_secret_key
       if (form.value.kling_secret_key_base64) baseS.kling_secret_key_base64 = true
       else delete baseS.kling_secret_key_base64
+      settings = Object.keys(baseS).length ? JSON.stringify(baseS) : null
+    } else if (form.value.service_type === 'video') {
+      const prev = editingId.value ? list.value.find((r) => r.id === editingId.value) : null
+      const baseS = parseSettings(prev?.settings)
+      delete baseS.video_duration
+      delete baseS.duration_capability
+      if (form.value.video_duration_mode === 'range') {
+        const min = Math.max(1, Math.round(Number(form.value.video_duration_min) || 1))
+        const max = Math.max(min, Math.round(Number(form.value.video_duration_max) || min))
+        const step = Math.max(1, Math.round(Number(form.value.video_duration_step) || 1))
+        baseS.video_duration = { mode: 'range', min_seconds: min, max_seconds: max, step_seconds: step }
+      } else if (form.value.video_duration_mode === 'fixed') {
+        const allowed = String(form.value.video_duration_fixed || '')
+          .split(/[,，\s]+/)
+          .map((v) => Math.round(Number(v)))
+          .filter((v) => Number.isFinite(v) && v > 0)
+        const unique = [...new Set(allowed)].sort((a, b) => a - b)
+        if (unique.length) baseS.video_duration = { mode: 'fixed', allowed_seconds: unique }
+      }
       settings = Object.keys(baseS).length ? JSON.stringify(baseS) : null
     } else if (isDeepSeekOfficialForm.value) {
       const prev = editingId.value ? list.value.find((r) => r.id === editingId.value) : null
@@ -1931,11 +2114,11 @@ async function openTest(row) {
   testVisible.value = true
   testResult.value = null
   testError.value = ''
+  testDiagnostic.value = ''
   testServiceType.value = row.service_type || 'text'
   const isDoubaoManager = row.api_protocol === 'doubao_manager' || row.provider === 'doubao_manager'
   try {
-    await aiAPI.testConnection({
-      config_id: row.id,
+    const diagnostic = await aiAPI.testConnection({
       base_url: row.base_url,
       api_key: row.api_key,
       model: Array.isArray(row.model) ? row.model[0] : row.model,
@@ -1946,6 +2129,7 @@ async function openTest(row) {
       settings: row.settings
     })
     testResult.value = true
+    testDiagnostic.value = diagnostic?.message || ''
   } catch (e) {
     testResult.value = false
     testError.value = e?.message || '请求失败'
@@ -1978,7 +2162,7 @@ async function onBatchDelete() {
   let success = 0, failed = 0
   for (const row of selectedRows.value) {
     try {
-    await aiAPI.delete(row.id, configPlatformScope.value)
+      await aiAPI.delete(row.id, configPlatformScope.value)
       success++
     } catch (_) { failed++ }
   }
@@ -2169,6 +2353,7 @@ async function loadVendorLock() {
 onMounted(() => {
   loadVendorLock()
   loadList()
+  loadGenerationSettings()
 })
 </script>
 

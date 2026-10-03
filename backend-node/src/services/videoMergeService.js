@@ -156,37 +156,30 @@ function validateVideoFile(filePath, log, label) {
 
 /** 使用 ffmpeg concat 合并多个视频文件 */
 function runFfmpegConcat(localPaths, outputPath, log) {
-  const ffmpegBin = getFfmpegPath();
-  const isWin = process.platform === 'win32';
-  const listFile = path.join(path.dirname(outputPath), `concat_list_${Date.now()}.txt`);
+  const {spawnSync}=require('child_process');
+  const {probeVideo}=require('../utils/probeVideo');
+  const dir=fs.mkdtempSync(path.join(require('os').tmpdir(),'drama-normalized-'));
+  const generated=[];
   try {
-    const lines = localPaths.map((p) => {
-      const normalized = p.replace(/\\/g, '/');
-      return `file '${normalized.replace(/'/g, "'\\''")}'`;
-    });
-    fs.writeFileSync(listFile, lines.join('\n'), 'utf8');
-    const { spawnSync } = require('child_process');
-    const args = [
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', listFile,
-      '-c', 'copy',
-      '-y',
-      outputPath,
-    ];
-    const result = spawnSync(ffmpegBin, args, { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
-    if (result.error) {
-      log.warn('Video merge: ffmpeg spawn error', { error: result.error.message });
-      return false;
+    const first=probeVideo(localPaths[0]);
+    const scale=Math.min(1,1920/Math.max(first.width,first.height));
+    const width=Math.max(2,Math.round(first.width*scale/2)*2),height=Math.max(2,Math.round(first.height*scale/2)*2);
+    for(let i=0;i<localPaths.length;i++) {
+      const media=probeVideo(localPaths[i]),dest=path.join(dir,`clip-${i}.mp4`);
+      generated.push(dest);
+      const input=['-y','-i',localPaths[i]];
+      if(!media.has_audio)input.push('-f','lavfi','-i','anullsrc=channel_layout=stereo:sample_rate=48000');
+      const args=[...input,'-map','0:v:0','-map',media.has_audio?'0:a:0':'1:a:0','-vf',`scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30`,'-c:v','libx264','-preset','fast','-crf','20','-pix_fmt','yuv420p','-c:a','aac','-ar','48000','-ac','2','-af','apad','-t',String(media.duration_ms/1000),'-movflags','+faststart',dest];
+      const r=spawnSync(getFfmpegPath(),args,{encoding:'utf8',windowsHide:true,maxBuffer:4*1024*1024});
+      if(r.error||r.status!==0)throw new Error(r.error?.message||r.stderr?.slice(-600)||'片段标准化失败');
     }
-    if (result.status !== 0) {
-      log.warn('Video merge: ffmpeg failed', { stderr: result.stderr?.slice(-500) });
-      return false;
-    }
+    const listFile=path.join(dir,'concat.txt');generated.push(listFile);
+    fs.writeFileSync(listFile,generated.filter(p=>p.endsWith('.mp4')).map(p=>`file '${p.replace(/\\/g,'/').replace(/'/g,"'\\''")}'`).join('\n'),'utf8');
+    const out=spawnSync(getFfmpegPath(),['-y','-f','concat','-safe','0','-i',listFile,'-c','copy','-movflags','+faststart',outputPath],{encoding:'utf8',windowsHide:true,maxBuffer:4*1024*1024});
+    if(out.error||out.status!==0)throw new Error(out.error?.message||out.stderr?.slice(-600)||'合成失败');
     return true;
-  } finally {
-    try { if (fs.existsSync(listFile)) fs.unlinkSync(listFile); } catch (_) {}
-  }
+  } catch(err){log.warn('Video merge failed',{error:err.message});return false;}
+  finally {for(const file of generated)try{fs.unlinkSync(file);}catch(_){} try{fs.rmdirSync(dir);}catch(_){} }
 }
 
 /** 异步处理视频合成：所有输入和输出通过视频校验后才标记完成。 */
@@ -219,7 +212,7 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
     return;
   }
 
-  const totalDuration = scenes.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+  let totalDuration = scenes.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
   const storageRoot = getStorageRoot();
   const tempDir = path.join(require('os').tmpdir(), 'drama-video-merge');
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -254,6 +247,16 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
     return;
   }
 
+  try {
+    const measured=localPaths.map(file=>require('../utils/probeVideo').probeVideo(file));
+    measured.forEach((media,index)=>{scenes[index].duration=media.duration_ms/1000;});
+    totalDuration=measured.reduce((sum,media)=>sum+media.duration_ms/1000,0);
+  } catch(err) {
+    db.prepare('UPDATE video_merges SET status=?,error_msg=? WHERE id=?').run('failed',err.message,mergeId);
+    if(taskId)taskService.updateTaskError(db,taskId,err.message);
+    for(const file of toCleanup)try{fs.unlinkSync(file);}catch(_){}
+    return;
+  }
   const ffmpegAvailable = hasLocalFfmpeg();
   log.info('Video merge: ffmpeg check', {
     merge_id: mergeId,
@@ -329,9 +332,19 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
   }
 
   const finalMergedUrl = mergedRelativePath;
+  let durationWarning = null;
+  try {
+    const measured = require('../utils/probeVideo').probeVideo(path.join(storageRoot, mergedRelativePath));
+    if (Math.abs(measured.duration_ms - totalDuration * 1000) > 300) durationWarning = `合成实测 ${(measured.duration_ms/1000).toFixed(2)} 秒，与输入合计 ${totalDuration.toFixed(2)} 秒存在差异，请检查音视频尾段`;
+    totalDuration = measured.duration_ms / 1000;
+  } catch (err) {
+    db.prepare('UPDATE video_merges SET status=?,error_msg=? WHERE id=?').run('failed',err.message,mergeId);
+    if(taskId) taskService.updateTaskError(db,taskId,err.message);
+    return;
+  }
   db.prepare(
     'UPDATE video_merges SET status = ?, merged_url = ?, duration = ?, completed_at = ?, error_msg = ? WHERE id = ?'
-  ).run('completed', finalMergedUrl, Math.round(totalDuration) || null, now, null, mergeId);
+  ).run('completed', finalMergedUrl, totalDuration || null, new Date().toISOString(), durationWarning, mergeId);
   db.prepare('UPDATE episodes SET video_url = ?, status = ?, updated_at = ? WHERE id = ?').run(finalMergedUrl, 'completed', now, episodeId);
   if (taskId) {
     taskService.updateTaskResult(db, taskId, { merge_id: mergeId, video_url: finalMergedUrl, duration: Math.round(totalDuration) });
@@ -339,6 +352,7 @@ async function processVideoMerge(db, log, mergeId, baseUrl) {
 }
 
 module.exports = {
+  runFfmpegConcat,
   list,
   getById,
   create,

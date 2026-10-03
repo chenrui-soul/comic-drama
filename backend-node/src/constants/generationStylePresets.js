@@ -70,7 +70,16 @@ function resolveStylePreset(legacy) {
   return byValue.get(k) || null;
 }
 
+function resolveRenderStyle(text) {
+  const value = String(text || '').trim();
+  const entry = [...byValue].find(([key, preset]) => value === key || value === preset.zh || value === preset.en);
+  if (!entry) return null;
+  const [zh,en] = require('./assetRenderStyles.json')[entry[0]];
+  return {zh,en};
+}
+
 module.exports = {
+  resolveRenderStyle,
   resolveStylePreset,
   PRESET_VALUES: [...byValue.keys()],
 };

@@ -96,7 +96,7 @@ function getStoryboardSystemPrompt(cfg) {
 [Task] Break down the novel script into storyboard shots based on **independent action units**.
 
 [Shot Breakdown Principles]
-1. **Action Unit Division**: Each storyboard shot corresponds to a **narrative beat**, and may contain 1-4 rapid internal cuts (described in the style of "Shot 1 ... Cut to Shot 2 ...") to fully utilize AI video clips of 5-15 seconds, avoiding excessive short clips caused by the old "one action per shot" rule that wastes generation time.
+1. **Action Unit Division**: Each storyboard shot corresponds to a **narrative beat**, and may contain 1-4 rapid internal cuts (described in the style of "Shot 1 ... Cut to Shot 2 ...") to fully utilize the configured clip duration (often 5-30 seconds), avoiding excessive short clips caused by the old "one action per shot" rule that wastes generation time. Do not add plot merely to fill capacity.
    - Ideal for merging character power awakening, quick reactions, or continuous actions into one storyboard entry connected by internal cuts
    - Only split into separate shots when there are clear pauses, scene changes, or narrative reasons for independent presentation
    - Traditional storyboard prompt style (with multi-shot cut descriptions) is fully supported
@@ -187,7 +187,7 @@ function getStoryboardSystemPrompt(cfg) {
 【任务】将小说剧本按**独立动作单元**拆解为分镜头方案。
 
 【分镜拆解原则】
-1. **动作单元划分**：每个分镜对应一个**叙事节拍**，允许包含1-4个快速连续的内部切镜（使用“镜头1 ... 切镜到镜头2 ...”风格描述），以充分利用AI视频至少5秒、最长可达15秒的时长，避免因“一个镜头一个动作”导致产生过多短时长片段造成时间浪费。
+1. **动作单元划分**：每个分镜对应一个**叙事节拍**，允许包含1-4个快速连续的内部切镜（使用“镜头1 ... 切镜到镜头2 ...”风格描述），以充分利用当前接口支持的片段时长（通常 5–30 秒），避免因“一个镜头一个动作”导致产生过多短时长片段造成时间浪费；不得为了填满容量新增剧情。
    - 适合将角色能量觉醒、快速反应、连续动作等合并在一个分镜内，用内部切镜串联
    - 仅当动作间有明显停顿、场景切换或叙事需要独立呈现时，才拆分为多个分镜
    - 传统分镜风格的提示词（含多镜头切镜描述）同样支持
@@ -441,15 +441,18 @@ function formatUserPrompt(cfg, key, ...args) {
 /** 分镜用户提示词后缀：详细输出格式与要求
  * @param {object} cfg - 配置对象
  * @param {number|null} shotDuration - 单镜建议时长（秒），由后端从项目配置或总时长/数量推算后注入
+ * @param {'target'|'capacity'} durationMode - 约定时长或容量上限
  */
-function getStoryboardUserPromptSuffix(cfg, shotDuration) {
+function getStoryboardUserPromptSuffix(cfg, shotDuration, durationMode = 'target') {
   const lang = isEnglish(cfg) ? 'en' : 'zh';
   const durationHint = shotDuration && Number.isFinite(Number(shotDuration)) && Number(shotDuration) > 0
     ? Number(shotDuration)
     : null;
   if (lang === 'en') {
     const durationInstruction = durationHint
-      ? `approximately ${durationHint}s per shot (project setting), adjust ±1s based on dialogue length and action complexity`
+      ? durationMode === 'capacity'
+        ? `at most ${durationHint}s per shot; end at the natural narrative and visual closure, and do not add plot to fill unused capacity`
+        : `approximately ${durationHint}s per shot (project setting), adjust ±1s based on dialogue length and action complexity`
       : 'estimate per shot from dialogue length, action complexity, and emotion';
     return `
 
@@ -469,7 +472,9 @@ function getStoryboardUserPromptSuffix(cfg, shotDuration) {
     return '\n\n' + _sbUserOverride + _sbUserLocked;
   }
   const durationInstruction = durationHint
-    ? `每镜头约${durationHint}秒（项目配置），综合对话、动作、情绪可适当调整±1秒`
+    ? durationMode === 'capacity'
+      ? `每镜头最多${durationHint}秒（项目容量上限），在对白、动作和视觉结果完成的自然闭合点结束，允许短于上限，禁止为填满时长新增剧情`
+      : `每镜头约${durationHint}秒（项目配置），综合对话、动作、情绪可适当调整±1秒`
     : '综合对话、动作、情绪估算每镜时长（秒）';
   return `
 
@@ -703,25 +708,25 @@ Core Rules:
 4. Emphasize the emotional aftermath - relief, tension, sadness, triumph
 5. ONLY characters in "ALLOWED CHARACTERS IN THIS SHOT" may appear; write each as "Name (use appearance from reference image)" plus position/posture/expression only — no hair/face/skin in scene or character lines
 6. Include character appearance details if provided (ONLY fixed identity anchors from the provided CHARACTER VISUAL ANCHORS block. Copy exactly the traits listed there. NEVER hallucinate new hair style/color/length, face shape, expression details, or temperament not explicitly present in the anchor. If no detailed anchor is provided for a character, write only "Name (use appearance from reference image)" and add ZERO invented visual details)
-7. **CORE POSITION + SCALE LOCK + MOVEMENT EVOLUTION (for 5-15s videos)**: 
+7. **CORE POSITION + SCALE LOCK + MOVEMENT EVOLUTION (for the actual clip duration)**:
 - Must keep core character screen placement (left/center/right third, facing), realistic physical sizes of all props, and basic spatial relationships consistent with the first frame / layout contract (no left-right swaps, no major repositioning of key elements, no scale distortion).
-- However, for 5-15 second clips, the last frame MUST show meaningful cinematic evolution driven by the declared camera_movement + the RESULT:
+- For clips longer than 15 seconds, divide the action into clear temporal beats while preserving the same physical scene and continuity. The last frame MUST show meaningful cinematic evolution driven by the declared camera_movement + the RESULT:
   - Slow push-in → noticeably tighter framing on the character (higher screen occupancy).
   - Handheld / tracking → natural slight framing drift and imperfect composition.
   - Pan / orbit → natural entry/exit changes or minor camera drift on sides.
 - Goal: First and last frames must feel like the same continuous physical scene, but with enough visual progression that the generated video actually realizes the declared movement instead of looking nearly static. Zero movement evolution = undesirable result.
 
 Cinematic Language (must apply):
-- COMPOSITION: For 5-15s videos, the last frame must balance "same physical space" consistency with visible evolution from the declared movement. Keep core placement and realistic prop scales, but allow framing changes that naturally result from the camera movement (tighter on push-in, natural drift on handheld, side shifts on pan). The goal is meaningful visual progression, not near-identical framing that kills motion.
+- COMPOSITION: For the actual clip duration, the last frame must balance "same physical space" consistency with visible evolution from the declared movement. Keep core placement and realistic prop scales, but allow framing changes that naturally result from the camera movement (tighter on push-in, natural drift on handheld, side shifts on pan). Longer clips need meaningful intermediate progression, not repeated or near-identical framing.
 - LIGHTING: Reflect emotional aftermath - soft warm light (resolution/comfort), lingering dramatic shadows (unresolved tension), fading light (loss/ending)
 - DEPTH OF FIELD: Match the emotional tone - shallow for intimate emotional close, deep for consequential wide shots showing impact on environment
-- CHARACTER POSITION: Show the final state after the full action + movement. Character's ending posture/expression per RESULT, with framing that reflects the cumulative effect of the declared camera_movement over the clip duration (more significant evolution allowed for 5-15s videos), while strictly keeping core placement, realistic prop scales, and no major spatial violations of the layout contract.
+- CHARACTER POSITION: Show the final state after the full action + movement. Character's ending posture/expression per RESULT, with framing that reflects the cumulative effect of the declared camera_movement over the actual clip duration, while strictly keeping core placement, realistic prop scales, and no major spatial violations of the layout contract.
 - ATMOSPHERE: Describe color tone and mood that carries the emotional weight of the scene's conclusion
 - **Style Requirement**: ${style}
 - **Image Ratio**: ${imageRatio}
 Output Format:
 Return a JSON object containing:
-- prompt: Complete image generation prompt (detailed cinematic description). For 5-15s videos, the prompt must describe visible framing evolution caused by the declared camera_movement (e.g. tighter framing after push-in, natural drift on handheld) while keeping core positions and realistic prop scales.
+- prompt: Complete image generation prompt (detailed cinematic description). The prompt must describe visible framing evolution caused by the declared camera_movement over the actual clip duration (e.g. tighter framing after push-in, natural drift on handheld) while keeping core positions and realistic prop scales.
 - description: Simplified Chinese description (for reference)`;
   }
   const _lfLocked = `\n- **风格要求**：${style}\n- **图片比例**：${imageRatio}\n输出格式：\n返回一个JSON对象，包含：\n- prompt：完整的中文图片生成提示词（详细的电影语言描述）\n- description：简化的中文描述（供参考）`;
@@ -734,7 +739,7 @@ Return a JSON object containing:
 
 重要：这是镜头的尾帧 - 一个静态画面，展示动作结束后的最终状态和结果。
 
-【最高优先级真实物理尺度与道具比例铁律 + 运镜演化（5-15秒视频）】（详见本分镜“空间布局锚点”中的完整铁律）
+【最高优先级真实物理尺度与道具比例铁律 + 运镜演化（按本镜实际时长）】（详见本分镜“空间布局锚点”中的完整铁律）
 本分镜内所有可见物体必须100%遵循其所属时代/场景的真实世界物理尺寸、正确相对比例和电影摄影透视法则；仅描述实际出现的道具，严禁时代错乱物品。所有道具均为次要环境元素。
 尾帧允许根据 movement 进行取景演化（例如缓推后人物占比明显增加、手持后自然漂移），但严禁改变任何物体的真实物理尺寸、相对比例或破坏透视。尺度失真 = 失败；完全没有运镜演化 = 同样不理想。
 
@@ -746,7 +751,7 @@ Return a JSON object containing:
 5. 【出场角色铁律】仅允许「本分镜允许出场的角色」名单内人物；名单外角色严禁出现
 6. 【角色外貌写法铁律】每个角色只写「名字（参考图中的人物形象）」+ 最终姿态 + 表情，严禁外貌描写；锚点不得写入 prompt
 7. 【场景描写铁律】环境/场景句严禁人物外貌描写
-8. 【人物站位与运镜演化铁律（5-15秒视频专用）】如果提供了首帧参考图或首帧构图描述（包括空间布局锚点），**必须保持核心站位、真实物理尺度、基本空间关系与透视一致**（主要角色不左右互换、主要道具不大幅移位、所有物体真实尺寸不变）。但**必须根据本分镜的 movement（运镜方式）和视频时长（通常5-15秒）进行有意义的取景演化**：
+8. 【人物站位与运镜演化铁律（按本镜实际时长）】如果提供了首帧参考图或首帧构图描述（包括空间布局锚点），**必须保持核心站位、真实物理尺度、基本空间关系与透视一致**（主要角色不左右互换、主要道具不大幅移位、所有物体真实尺寸不变）。但**必须根据本分镜的 movement（运镜方式）和实际视频时长进行有意义的取景演化**；超过15秒时增加中间节拍，不得重复或凭空添加剧情：
    - 例如：缓推（slow push-in）时，尾帧人物在画面中的占比应明显比首帧更大、背景更被压缩；
    - 手持跟拍时，允许自然的取景轻微晃动与不完美偏移；
    - 横摇/环绕时，画面可有自然的左右进入/退出变化或轻微机位漂移。
@@ -754,7 +759,7 @@ Return a JSON object containing:
 
 【电影语言规范（必须应用）】
 
-构图规则（收尾镜头，5-15秒视频）：
+构图规则（收尾镜头，按本镜实际视频时长）：
 - 收尾镜头必须在核心站位、真实物体尺度、基本空间关系上与首帧保持一致（硬锁）。
 - 但**必须体现 declared movement 的累积视觉效果**：例如缓推后尾帧应比首帧更紧（人物占比明显增加）、手持跟拍后允许自然取景漂移、横摇后画面可有轻微左右偏移。
 - 目标是让首尾帧之间有足够但合理的视觉差异，使基于它们的视频能真正“动”起来，而不是几乎定格。
@@ -773,17 +778,17 @@ Return a JSON object containing:
 - **风格要求**：${style}
 - **图片比例**：${imageRatio}
 
-【5层结构输出格式 + 尺度 + 运镜演化强制要求（5-15秒视频）】
+【5层结构输出格式 + 尺度 + 运镜演化强制要求（按本镜实际视频时长）】
 返回JSON对象，prompt 字段按以下5层顺序拼接成**中文**，各层间用中文逗号「，」分隔（不加层标签文字）。
-- **第3层“内容焦点”必须同时包含**：真实物体尺度描述 + 根据本分镜 movement 和时长（5-15秒）进行的取景演化描述（例如“缓推后人物画面占比明显增加”、“手持跟拍后取景有自然轻微漂移”等）。
+- **第3层“内容焦点”必须同时包含**：真实物体尺度描述 + 根据本分镜 movement 和实际时长进行的取景演化描述（例如“缓推后人物画面占比明显增加”、“手持跟拍后取景有自然轻微漂移”等）。
 第1层-镜头设计：景别 + 机位角度 + 构图方式（需体现尾帧相对于首帧的自然演化）
 第2层-光线：光源方向 + 光线质感 + 色温
-第3层-内容焦点：角色（仅「名字（参考图中的人物形象）」+最终姿态+情绪余韵）+ 场景最终状态（不含外貌） + 真实尺度 + **运镜累积演化描述**（必须写，5-15秒视频需有明显但合理的视觉差异）
+第3层-内容焦点：角色（仅「名字（参考图中的人物形象）」+最终姿态+情绪余韵）+ 场景最终状态（不含外貌） + 真实尺度 + **运镜累积演化描述**（必须写，实际时长较长时增加中间节拍但保持空间连续）
 第4层-氛围：情绪基调 + 色彩倾向
 第5层-视觉风格：${style ? style + '，' : ''}电影分镜质感，${imageRatio} 画幅，所有物体严格真实尺度，运镜自然演化
 
 JSON字段：
-- prompt：**必须全文中文**的图片生成提示词（直接给图片AI使用；禁止整句英文；必须自然融入符合时代的真实尺度 + 根据 movement 的取景演化描述，5-15秒视频尾帧需体现运镜累积效果，严禁时代错乱道具或物体过大失真）
+- prompt：**必须全文中文**的图片生成提示词（直接给图片AI使用；禁止整句英文；必须自然融入符合时代的真实尺度 + 根据 movement 的取景演化描述，尾帧需体现运镜累积效果，严禁时代错乱道具或物体过大失真）
 - description：一句话中文描述（供人类参考）`;
 }
 
@@ -1535,7 +1540,7 @@ function getPropPolishPrompt(cfg) {
 - **零扩展**：只保留输入里**已写明或可合理从材质/形制直接读出**的视觉信息；**禁止**新增配饰、品牌/朝代故事、情绪叙事、电影化形容词堆砌、与物体无关的联想词。
 
 ### 主体与背景（【最高优先级强制铁律】- 违反即严重失败）
-- **唯一主体 + 零背景铁律（CRITICAL）**：画面中**只能有这一件道具**，**100% 纯色无缝无限影棚背景（seamless cyclorama / infinite solid color backdrop）**，**绝对禁止任何环境、地面、台面、墙壁、地板、阴影投射在表面、渐变、纹理、室内外元素**。背景必须是单一哑光纯色（推荐与道具形成高对比的中性浅灰或中性深灰，便于抠像），**不得出现任何除道具本体以外的像素**。
+- **唯一主体 + 零背景铁律（CRITICAL）**：画面中**只能有这一件道具**，**100% 纯色无缝无限影棚背景（seamless cyclorama / infinite solid color backdrop）**，**绝对禁止任何环境、地面、台面、墙壁、地板、阴影投射在表面、渐变、纹理、室内外元素**。背景必须是单一哑光纯色（推荐与道具形成高对比的中性浅灰或中性深灰，便于抠像），**除道具本体和极轻接触阴影外，其余区域为统一纯色**。
 - **严禁模型常见错误**：严禁生成“漂亮的室内场景”“木质桌面”“大理石台面”“柔焦背景”“环境光影”“地面反射”“轻微景深”“工作室一角”“放在架子上”等任何背景或支撑面描述。任何导致背景不是纯色的输出都属于失败。
 - **零杂物**：禁止桌面散落物、书本、植物、器皿、布料堆叠、包装箱、工具、第二件道具、灰尘烟雾粒子、景深虚化里的「远处物体」等；除非描述明确该物为道具不可分割的一部分，否则一律不出现。
 
@@ -1564,10 +1569,10 @@ function getPropPolishPrompt(cfg) {
 - **零扩展**：只保留输入里**已写明或可合理从材质/形制直接读出**的视觉信息；**禁止**新增配饰、品牌/朝代故事、情绪叙事、电影化形容词堆砌、与物体无关的联想词。
 
 ### 主体与背景（【最高优先级强制铁律 - 违反即严重失败】）
-- **唯一主体 + 纯色零背景铁律（CRITICAL）**：画面中**只能有这一件道具**，**100% 纯色无缝无限影棚背景（单一哑光纯色 seamless cyclorama / infinite solid color backdrop）**，**绝对禁止任何环境、地面、台面、墙壁、地板、阴影投射、渐变、纹理、室内外元素**。背景必须是与道具形成高对比的中性纯色（浅灰或深灰最佳，便于抠像），**不得出现任何除道具本体以外的像素**。
+- **唯一主体 + 纯色零背景铁律（CRITICAL）**：画面中**只能有这一件道具**，**100% 纯色无缝无限影棚背景（单一哑光纯色 seamless cyclorama / infinite solid color backdrop）**，**绝对禁止任何环境、地面、台面、墙壁、地板、长投射阴影、渐变、纹理、室内外元素**。背景必须是与道具形成高对比的中性纯色（浅灰或深灰最佳，便于抠像），**不得出现任何除道具本体以外的像素**。
 - **严禁模型常见错误**：严禁生成“漂亮的室内场景”“木质桌面”“大理石台面”“柔焦背景”“环境光影”“地面反射”“轻微景深”“工作室一角”“放在架子上”“放在地板上”等任何背景或支撑面描述。任何导致背景不是纯色的输出都属于失败。
 - **零杂物**：禁止桌面散落物、书本、植物、器皿、布料堆叠、包装箱、工具、第二件道具、灰尘烟雾粒子、景深虚化里的「远处物体」等；除非描述明确该物为道具不可分割的一部分，否则一律不出现。
-- **真实物理尺度铁律（最高优先级）**：道具必须严格遵循其所属时代的真实世界物理尺寸与相对比例；道具在画面中为**严格次要环境元素**，严禁夸大、立起、成为主导视觉或破坏透视。
+- **真实物理尺度铁律（最高优先级）**：道具必须严格遵循其所属时代的真实世界物理尺寸与相对比例；道具是资产主图的唯一视觉主体，应完整清晰展示；真实尺度约束物体自身结构与相对比例，不限制主体在画面中的占比。
 
 ### 质感与光
 - 材质、镀层、磨损、刻字（若有）、比例暗示要写具体（可量化词汇：拉丝/哑光/抛光/微细划痕）；**句子宁少勿多**。
@@ -1578,7 +1583,7 @@ function getPropPolishPrompt(cfg) {
 
 ### 输出格式
 直接输出**一段**中文提示词（约 **45–90 字**，能更短则更短），不要解释、标题、列表或引号。
-**必须**在同一段内自然包含以下关键约束的中文表述（或等价流畅说法）：单一主体、纯色无缝棚拍背景、无多余物体、无人物、无手、无环境；并融入真实尺度与次要元素要求；末尾再接画风：${styleZh ? styleZh + ' 渲染质感' : '写实产品主图质感'}`;
+**必须**在同一段内自然包含以下关键约束的中文表述（或等价流畅说法）：单一主体、纯色无缝棚拍背景、无多余物体、无人物、无手、无环境；并融入真实物理比例与资产主体清晰展示要求；末尾再接画风：${styleZh ? styleZh + ' 渲染质感' : '写实产品主图质感'}`;
 }
 
 module.exports = {

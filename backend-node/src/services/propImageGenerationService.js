@@ -1,3 +1,4 @@
+const assetCompiler = require('./assetPromptCompiler');
 // 与 Go PropService.GeneratePropImage + processPropImageGeneration 对齐：道具图片生成
 const path = require('path');
 const taskService = require('./taskService');
@@ -32,22 +33,7 @@ async function processPropImageGeneration(db, log, taskId, propId, opts) {
     return;
   }
 
-  const loadConfig = require('../config').loadConfig;
-  const { mergeCfgStyleWithDrama } = require('../utils/dramaStyleMerge');
-  let cfg = loadConfig();
-  if (prop.drama_id) {
-    try {
-      const dr = db.prepare('SELECT style, metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(prop.drama_id);
-      cfg = mergeCfgStyleWithDrama(cfg, dr || {});
-    } catch (_) {}
-  }
-  const styleOverride = (opts && opts.style) ? String(opts.style).trim() : '';
-  const baseStyle = styleOverride || (cfg?.style?.default_style_en || cfg?.style?.default_style || '');
-  let style = '';
-  style = appendPrompt(style, baseStyle);
-  if (!styleOverride) {
-    style = appendPrompt(style, cfg?.style?.default_prop_style || '');
-  }
+  const cfg = require('../config').loadConfig();
   // 优先用项目 aspect_ratio 推导尺寸；兜底 1920x1920（满足 ≥3,686,400 像素要求）
   let imageSize = null;
   if (prop.drama_id) {
@@ -60,7 +46,7 @@ async function processPropImageGeneration(db, log, taskId, propId, opts) {
     } catch (_) {}
   }
   if (!imageSize) imageSize = cfg?.style?.default_image_size || '1920x1920';
-  const fullPrompt = appendPrompt(String(prop.prompt).trim(), style);
+  const fullPrompt = String(opts.prompt_snapshot || prop.prompt).trim();
   // 与角色/场景一致：使用前端「图片生成模型」选择的 model；未传时用 YAML default_image_provider 兜底
   const model = (opts && opts.model) ? String(opts.model).trim() || null : null;
   const preferredProvider = !model && cfg?.ai?.default_image_provider ? cfg.ai.default_image_provider : null;
@@ -149,13 +135,18 @@ async function processPropImageGeneration(db, log, taskId, propId, opts) {
   log.info('Prop image generation completed', { prop_id: propId, image_url: result.image_url, local_path: localPath });
 }
 
-function generatePropImage(db, log, propId, opts) {
-  const prop = propService.getById(db, propId);
+async function generatePropImage(db, log, propId, opts = {}) {
+  let prop = propService.getById(db, propId);
   if (!prop) throw new Error('道具不存在');
-  if (!prop.prompt || !String(prop.prompt).trim()) {
-    throw new Error('道具没有图片提示词');
-  }
 
+  const reuse = assetCompiler.checkReuse(db, require('../config').loadConfig(), 'prop', propId, 'single', opts?.style, opts?.prompt_policy);
+  if (!reuse.ok) { const err = new Error(reuse.error); err.status = reuse.status; throw err; }
+  if (!String(prop.prompt || '').trim() || opts.prompt_policy === 'recompile') {
+    const compiled = await assetCompiler.compile(db,log,require('../config').loadConfig(),'prop',propId,{style:opts.style});
+    if (!compiled.ok) { const err=new Error(compiled.error);err.status=compiled.status;throw err; }
+    prop=propService.getById(db,propId);
+  }
+  opts={...opts,prompt_snapshot:prop.prompt};
   const task = taskService.createTask(db, log, 'prop_image_generation', String(propId));
   aiTaskQueue.enqueue(db, log, task.id, 'prop_image_generation', { propId, opts: opts || {} });
   return task.id;

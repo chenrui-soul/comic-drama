@@ -1,6 +1,6 @@
 app:
-  name: LocalMiniDrama API
-  version: 1.0.0
+  name: 白同学短剧助手 API
+  version: 1.4.0-preview.20261003.1
   debug: false
   language: zh
 server:

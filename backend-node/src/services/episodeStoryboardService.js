@@ -1,3 +1,4 @@
+const narrativePlanner = require('./narrativeUnitPlanner');
 // 与 Go StoryboardService.GenerateStoryboard + processStoryboardGeneration 对齐
 const taskService = require('./taskService');
 const aiClient = require('./aiClient');
@@ -398,7 +399,7 @@ function deriveStoryboardFieldsFromAi(sb, style, videoRatio, opts = {}) {
   const depthOfField = sb.depth_of_field ?? null;
   let durationSec = normalizeDuration(sb.duration) || 5;
   const targetClip = opts.targetClipDuration != null ? Number(opts.targetClipDuration) : 0;
-  if (Number.isFinite(targetClip) && targetClip > 0) {
+  if (opts.targetClipMode !== 'capacity' && Number.isFinite(targetClip) && targetClip > 0) {
     durationSec = Math.max(durationSec, Math.round(targetClip));
   }
   durationSec = Math.min(120, Math.max(1, Math.round(durationSec)));
@@ -425,7 +426,7 @@ function deriveStoryboardFieldsFromAi(sb, style, videoRatio, opts = {}) {
   const propIds = Array.isArray(sb.props) ? sb.props.map(Number).filter(Number.isFinite) : [];
   let universalSegmentText = '';
   if (sb.universal_segment_text != null && String(sb.universal_segment_text).trim()) {
-    universalSegmentText = String(sb.universal_segment_text).trim().replace(/\r?\n/g, ' ');
+    universalSegmentText = String(sb.universal_segment_text).trim();
   }
   if (universalOmni && !universalSegmentText) {
     universalSegmentText = buildFallbackUniversalSeedanceLine(
@@ -716,10 +717,10 @@ function saveStoryboards(db, log, episodeId, storyboards, cfg, styleOverride, sk
 
     try {
       db.prepare(
-        `INSERT INTO storyboards (episode_id, scene_id, storyboard_number, title, description, location, time, duration, dialogue, narration, action, result, atmosphere, image_prompt, video_prompt, characters, shot_type, angle, angle_h, angle_v, angle_s, movement, lighting_style, depth_of_field, segment_index, segment_title, creation_mode, universal_segment_text, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+        `INSERT INTO storyboards (organization_id, episode_id, scene_id, storyboard_number, title, description, location, time, duration, dialogue, narration, action, result, atmosphere, image_prompt, video_prompt, characters, shot_type, angle, angle_h, angle_v, angle_s, movement, lighting_style, depth_of_field, segment_index, segment_title, creation_mode, universal_segment_text, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
       ).run(
-        episodeIdNum, d.sceneId, shotNumber, d.title || null, d.description,
+        getTenantId() || 1, episodeIdNum, d.sceneId, shotNumber, d.title || null, d.description,
         sb.location ?? null, sb.time ?? null, sb.duration ?? 5,
         d.dialogue || null, d.narration || null, d.action || null, d.result || null, sb.atmosphere ?? null,
         d.imagePrompt, d.videoPrompt, d.charactersJson,
@@ -732,10 +733,10 @@ function saveStoryboards(db, log, episodeId, storyboards, cfg, styleOverride, sk
     } catch (e) {
       if ((e.message || '').includes('shot_type') || (e.message || '').includes('angle') || (e.message || '').includes('movement') || (e.message || '').includes('result') || (e.message || '').includes('segment') || (e.message || '').includes('narration')) {
         db.prepare(
-          `INSERT INTO storyboards (episode_id, scene_id, storyboard_number, title, description, location, time, duration, dialogue, action, atmosphere, image_prompt, video_prompt, characters, creation_mode, universal_segment_text, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+          `INSERT INTO storyboards (organization_id, episode_id, scene_id, storyboard_number, title, description, location, time, duration, dialogue, action, atmosphere, image_prompt, video_prompt, characters, creation_mode, universal_segment_text, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
         ).run(
-          episodeIdNum, d.sceneId, shotNumber, d.title || null, d.description,
+          getTenantId() || 1, episodeIdNum, d.sceneId, shotNumber, d.title || null, d.description,
           sb.location ?? null, sb.time ?? null, sb.duration ?? 5,
           d.dialogue || null, d.action || null, sb.atmosphere ?? null,
           d.imagePrompt, d.videoPrompt, d.charactersJson,
@@ -843,7 +844,7 @@ ${lastCtx}
 ${originalUserPrompt}`;
 }
 
-async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, targetClipDurationSec = null) {
+async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, model, style, userPrompt, systemPrompt, includeNarration, universalOmni, targetClipDurationSec = null, targetClipMode = 'target') {
   // 增量保存状态放在 try 外，catch 里可用于部分恢复
   const episodeIdNum = Number(episodeId);
   const streamSavedNums = new Set();
@@ -852,8 +853,10 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
   const deriveOpts = {
     universalOmni: !!universalOmni,
     targetClipDuration: targetClipDurationSec != null && Number(targetClipDurationSec) > 0 ? Number(targetClipDurationSec) : null,
+    targetClipMode: targetClipMode === 'capacity' ? 'capacity' : 'target',
   };
   let streamThrottle = 0;
+  let validatedPlan = null;
 
   try {
     taskService.updateTaskStatus(db, taskId, 'processing', 10, '开始生成分镜头...');
@@ -865,9 +868,13 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
     });
     logDebugStoryboardPrompts(log, `task-${taskId}-initial`, userPrompt, systemPrompt);
 
-    // 提前删除旧分镜，为增量流式保存腾出位置
-    const deleteNow = new Date().toISOString();
-    db.prepare('UPDATE storyboards SET deleted_at = ? WHERE episode_id = ? AND deleted_at IS NULL').run(deleteNow, episodeIdNum);
+    if (cfg._useValidatedPlan && Number(targetClipDurationSec) > 15) {
+      taskService.updateTaskStatus(db, taskId, 'processing', 12, '正在规划事件依赖、关键路径和自然闭合点…');
+      validatedPlan = await narrativePlanner.generate(db, log, episodeId, model, Number(targetClipDurationSec), cfg._manualStoryboardCount, cfg._planningOptions || {});
+      deriveOpts.targetClipMode = 'capacity';
+      systemPrompt += '\n分镜必须逐一落实已验证单元计划。不要新增剧情、改写原台词、改变单元数或时长。duration 必须使用 request_duration_ms/1000。视频 Skill 仍在保存后的逐镜润色环节使用。';
+      userPrompt += '\n已验证单元计划（含原文、事件时间轨和状态）：\n' + JSON.stringify(validatedPlan);
+    }
 
     // 不使用 json_mode：response_format:json_object 要求返回 JSON 对象而非数组，会导致模型包装成
     // {"storyboards":[...]} 或产生乱码 key，改由 extractFirstArray 统一处理任意包装格式。
@@ -877,7 +884,7 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
       streamCallback: (accumulated) => {
         if (accumulated.length - streamThrottle < 400) return;
         streamThrottle = accumulated.length;
-        tryIncrementalSave(db, log, episodeIdNum, accumulated, streamSavedNums, streamStyle, streamVideoRatio, deriveOpts);
+        taskService.updateTaskStatus(db, taskId, 'processing', 30, '正在接收分镜草稿，完整校验后统一发布…');
         // 同步更新任务进度（根据已保存分镜数量）
         if (streamSavedNums.size > 0) {
           taskService.updateTaskStatus(db, taskId, 'processing', 30,
@@ -990,7 +997,7 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
           streamCallback: (accumulated) => {
             if (accumulated.length - streamThrottle < 400) return;
             streamThrottle = accumulated.length;
-            tryIncrementalSave(db, log, episodeIdNum, accumulated, streamSavedNums, streamStyle, streamVideoRatio, deriveOpts);
+            taskService.updateTaskStatus(db, taskId, 'processing', 30, '正在接收分镜草稿，完整校验后统一发布…');
           },
         });
       } catch (e) {
@@ -1041,7 +1048,25 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
     taskService.updateTaskStatus(db, taskId, 'processing', 70, '正在保存分镜头...');
 
     // 传入 streamSavedNums：已增量保存的项目直接从 DB 读取，跳过重复 INSERT
-    const saved = saveStoryboards(db, log, episodeId, storyboards, cfg, style, streamSavedNums, deriveOpts);
+    if (parseMeta.truncated) throw new Error('分镜草稿不完整，旧分镜已保留，请重试或缩小剧本范围');
+    if (validatedPlan) {
+      const latestScript = db.prepare('SELECT script_content, description FROM episodes WHERE id=?').get(episodeIdNum);
+      const source = latestScript?.script_content || latestScript?.description || '';
+      if (require('crypto').createHash('sha256').update(String(source)).digest('hex') !== validatedPlan.source_hash) throw new Error('规划期间剧本已修改，旧草稿未发布，请按最新原文重新规划');
+      narrativePlanner.validateBoards(storyboards, validatedPlan);
+    }
+    const saved = db.transaction(() => {
+      if (validatedPlan) {
+        const latest = db.prepare('SELECT id FROM narrative_unit_plans WHERE episode_id=? ORDER BY rowid DESC LIMIT 1').get(episodeIdNum);
+        if (latest?.id !== validatedPlan.id) throw new Error('已有更新的单元规划任务，本次旧草稿未覆盖分镜');
+      }
+      const rows = saveStoryboards(db, log, episodeId, storyboards, cfg, style, null, deriveOpts);
+      if (validatedPlan) {
+        const bound = { ...validatedPlan, storyboard_ids: rows.map(row => row.id) };
+        db.prepare("UPDATE narrative_unit_plans SET status='published',payload=? WHERE id=?").run(JSON.stringify(bound), validatedPlan.id);
+      }
+      return rows;
+    })();
 
     // ── 分镜角色补全（字符串匹配，无 AI，极快）──────────────────────────────────
     taskService.updateTaskStatus(db, taskId, 'processing', 75, '正在校验分镜角色关联...');
@@ -1072,7 +1097,7 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
     log.info('Storyboard generation completed', { task_id: taskId, episode_id: episodeId });
   } catch (err) {
     log.error('Storyboard generation failed', { error: err.message, task_id: taskId });
-
+    if (validatedPlan) db.prepare("UPDATE narrative_unit_plans SET status='blocked',error=? WHERE id=?").run(err.message, validatedPlan.id);
     // 若连接中断（ECONNRESET 等）但已通过增量流式保存了部分分镜，视为部分成功而非彻底失败
     if (streamSavedNums.size > 0) {
       try {
@@ -1099,7 +1124,7 @@ async function processStoryboardGeneration(db, log, cfg, taskId, episodeId, mode
   }
 }
 
-function generateStoryboard(db, log, episodeId, model, style, storyboardCount, videoDuration, aspectRatio, includeNarration, universalOmni) {
+function generateStoryboard(db, log, episodeId, model, style, storyboardCount, videoDuration, aspectRatio, includeNarration, universalOmni, countSource = 'manual', planningOptions = {}) {
   const cfg = loadConfig();
   const episode = db.prepare(
     'SELECT id, script_content, description, drama_id FROM episodes WHERE id = ? AND deleted_at IS NULL'
@@ -1116,14 +1141,39 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   // 图片比例 + 每镜时长：优先用传入值，再从 drama.metadata 读，最后兜底全局配置
   let dramaAspectRatio = null;
   let videoClipDuration = null;
+  let videoClipDurationMode = 'target';
   try {
     if (drama && drama.metadata) {
       const meta = typeof drama.metadata === 'string' ? JSON.parse(drama.metadata) : drama.metadata;
       if (meta && meta.aspect_ratio) dramaAspectRatio = meta.aspect_ratio;
       if (meta && meta.video_clip_duration) videoClipDuration = Number(meta.video_clip_duration) || null;
+      if (meta && meta.video_clip_duration_mode === 'capacity') videoClipDurationMode = 'capacity';
     }
   } catch (_) {}
+  if (planningOptions.video_clip_duration != null && Number(planningOptions.video_clip_duration) > 0) {
+    videoClipDuration = Number(planningOptions.video_clip_duration);
+  }
+  if (planningOptions.video_clip_duration_mode != null) {
+    videoClipDurationMode = planningOptions.video_clip_duration_mode === 'capacity' ? 'capacity' : 'target';
+  } else if (videoClipDuration > 15) {
+    videoClipDurationMode = 'capacity';
+  }
   const imageRatio = aspectRatio || dramaAspectRatio || cfg?.style?.default_video_ratio || '16:9';
+  const plannerOptions = {
+    ...planningOptions,
+    clip_seconds: videoClipDuration,
+    duration_mode: videoClipDurationMode,
+    storyboard_count: storyboardCount,
+    storyboard_count_source: countSource,
+    total_seconds: videoDuration,
+    total_source: planningOptions.video_duration_source || (videoDuration ? 'manual' : 'auto'),
+    aspect_ratio: imageRatio,
+    language: planningOptions.language || cfg?.app?.language || 'zh',
+    style: finalStyle,
+    universal_omni_storyboard: !!universalOmni,
+    include_narration: !!includeNarration,
+    _useValidatedPlan: planningOptions.video_clip_duration_mode == null && videoClipDurationMode === 'capacity',
+  };
 
   // 计算单镜建议时长（秒）：
   // 项目 metadata 中的 video_clip_duration（如 15 秒/段）优先于「总时长÷镜数」，
@@ -1182,27 +1232,34 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   // 处理分镜数量和时长约束
   let extraConstraint = '';
   // 宽松判断：只要有值（包括字符串形式的数字），就尝试转换并添加约束
-  if (storyboardCount) {
+  if (storyboardCount && countSource === 'manual') {
     const countVal = Number(storyboardCount);
     if (Number.isFinite(countVal) && countVal > 0) {
       const countLabel = promptI18n.formatUserPrompt(cfg, 'storyboard_count_constraint', countVal);
       if (countLabel) extraConstraint += `\n${countLabel}`;
     }
   }
-  if (videoDuration) {
+  if (videoDuration && planningOptions.video_duration_source !== 'auto') {
     const durationVal = Number(videoDuration);
     if (Number.isFinite(durationVal) && durationVal > 0) {
       const durationLabel = promptI18n.formatUserPrompt(cfg, 'video_duration_constraint', durationVal);
       if (durationLabel) extraConstraint += `\n${durationLabel}`;
     }
   }
-  // 当同时指定总时长和数量时，补充单镜 duration 说明（与项目「每段秒数」一致时勿用总÷镜压短）
+  // 当同时指定总时长和数量时，补充单镜 duration 说明（容量模式允许自然闭合，不强制拉满）
   if (storyboardCount && videoDuration && effectiveShotDuration) {
     const isEn = promptI18n.isEnglish(cfg);
     const clipFromProject = videoClipDuration && Number(videoClipDuration) > 0;
     const implied =
       impliedFromTotal && impliedFromTotal > 0 ? impliedFromTotal : Math.round(Number(videoDuration) / Number(storyboardCount));
-    if (clipFromProject) {
+    if (clipFromProject && videoClipDurationMode === 'capacity') {
+      const clip = Number(videoClipDuration);
+      if (isEn) {
+        extraConstraint += `\nEach shot duration is a natural-closure target with a hard capacity of **${clip}s**. It may be shorter when the narrative and visual result close earlier; do not add plot to fill the remaining time. Total ~${Number(videoDuration)}s and ~${Number(storyboardCount)} shots are planning references only.`;
+      } else {
+        extraConstraint += `\n当前采用「每段最多」模式：每个镜头的 **duration** 不得超过 ${clip} 秒；应在对白、动作和视觉结果完成的自然闭合点结束，允许明显短于 ${clip} 秒，禁止为填满剩余时长新增剧情、冲突、攻击、反转或特效。全片总时长与镜头数仅作规划参考。`;
+      }
+    } else if (clipFromProject) {
       const clip = Number(videoClipDuration);
       if (isEn) {
         extraConstraint += `\nEach shot "duration" field: prioritize **~${clip}s per shot** (project clip-length setting); ±1s OK. Total ~${Number(videoDuration)}s and ~${Number(storyboardCount)} shots are overall planning hints—do NOT force every shot to ~${implied}s (total÷count) when it conflicts with the project clip length.`;
@@ -1220,6 +1277,7 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
     storyboard_count: storyboardCount,
     video_duration: videoDuration,
     video_clip_duration: videoClipDuration,
+    video_clip_duration_mode: videoClipDurationMode,
     effective_shot_duration: effectiveShotDuration,
   });
 
@@ -1229,7 +1287,7 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   const sceneConstraint = promptI18n.formatUserPrompt(cfg, 'scene_constraint');
   const propListLabel = promptI18n.formatUserPrompt(cfg, 'prop_list_label');
   const propConstraint = promptI18n.formatUserPrompt(cfg, 'prop_constraint');
-  const suffix = promptI18n.getStoryboardUserPromptSuffix(cfg, effectiveShotDuration);
+  const suffix = promptI18n.getStoryboardUserPromptSuffix(cfg, effectiveShotDuration, videoClipDurationMode);
 
   let userPrompt =
     `${scriptLabel}\n${scriptContent}\n\n${taskLabel}\n${taskInstruction}${extraConstraint}\n\n${charListLabel}\n${characterList}\n\n${charConstraint}\n\n${sceneListLabel}\n${sceneList}\n\n${sceneConstraint}\n\n${propListLabel}\n${propList}\n\n${propConstraint}\n\n${suffix}`;
@@ -1240,26 +1298,15 @@ function generateStoryboard(db, log, episodeId, model, style, storyboardCount, v
   }
 
   let systemPrompt = promptI18n.getStoryboardSystemPrompt(cfg);
+  if (videoClipDuration > 15) {
+    userPrompt += '\n本次生成设置（自动估值仅供参考；人工设置作为规划目标。若单段时长为容量上限，可在自然闭合点提前结束，不得为凑时长新增剧情）：' + JSON.stringify(plannerOptions);
+    systemPrompt += '\n按本次设置的语言、画幅、全能/经典模式生成；未选旁白不新增旁白。分镜数量指视频单元数，不是子镜头数。';
+  }
 
-  // 当用户指定了分镜数量时，在系统提示词后追加最高优先级覆盖指令，
-  // 使"目标数量"优先于默认的"一动作一镜头、禁止合并"原则
-  if (storyboardCount && Number(storyboardCount) > 0) {
-    const targetCount = Number(storyboardCount);
-    const isEn = systemPrompt.includes('[Role]');
-    if (isEn) {
-      systemPrompt += `\n\n[HIGHEST PRIORITY — USER SPECIFIED COUNT]
-The user requires exactly ${targetCount} shots (±10% tolerance is acceptable).
-This requirement OVERRIDES the "one action = one shot, no merging" rule above.
-You MUST merge related consecutive actions into fewer shots OR split key moments into more shots to reach this target.
-Do NOT produce a shot count far from ${targetCount} under any circumstance.`;
-    } else {
-      systemPrompt += `\n\n【最高优先级——用户指定分镜数量】
-用户要求生成恰好 ${targetCount} 个分镜（允许 ±10% 的偏差，即 ${Math.floor(targetCount * 0.9)}~${Math.ceil(targetCount * 1.1)} 个均可接受）。
-此要求优先级高于上述所有原则，包括"一动作一镜头、禁止合并"的规则。
-- 若动作较多、自然拆分超过目标数量，请将相关联的连续小动作合并为一个镜头
-- 若动作较少、自然拆分不足目标数量，请将重要场景或情绪转折拆分为多个镜头
-- 严禁生成数量与 ${targetCount} 相差悬殊的分镜方案`;
-    }
+  if (storyboardCount && countSource === 'manual') {
+    systemPrompt += '\n人工要求 ' + Number(storyboardCount) + ' 个单元。该数量不得凌驾于原文、对白和闭合规则；冲突时返回 BLOCKED_REVIEW，不得增删剧情硬凑。';
+  } else if (storyboardCount) {
+    userPrompt += '\n自动估计约 ' + Number(storyboardCount) + ' 个单元，仅供参考，应由自然叙事弧决定实际数量。';
   }
 
   if (wantNarration) {
@@ -1305,6 +1352,9 @@ The user enabled narrator voice-over for the whole episode. Every shot object MU
     wantUniversalOmni,
     clipSec,
     imageRatio,
+    videoClipDurationMode,
+    manualStoryboardCount: countSource === 'manual' ? Number(storyboardCount) || null : null,
+    planningOptions: plannerOptions,
   });
 
   return { task_id: task.id, status: 'pending', message: '分镜生成任务已创建，正在后台处理...' };
@@ -1312,7 +1362,7 @@ The user enabled narrator voice-over for the whole episode. Every shot object MU
 
 aiTaskQueue.register('storyboard_generation', (db, log, taskId, payload) => {
   const cfg = loadConfig();
-  const runCfg = { ...cfg, style: { ...(cfg?.style || {}), default_video_ratio: payload.imageRatio, default_image_ratio: payload.imageRatio } };
+  const runCfg = { ...cfg, _manualStoryboardCount: payload.manualStoryboardCount || null, _planningOptions: payload.planningOptions || {}, _useValidatedPlan: payload.planningOptions?._useValidatedPlan !== false, style: { ...(cfg?.style || {}), default_video_ratio: payload.imageRatio, default_image_ratio: payload.imageRatio } };
   return processStoryboardGeneration(
     db,
     log,
@@ -1325,7 +1375,8 @@ aiTaskQueue.register('storyboard_generation', (db, log, taskId, payload) => {
     payload.systemPrompt,
     payload.wantNarration,
     payload.wantUniversalOmni,
-    payload.clipSec
+    payload.clipSec,
+    payload.videoClipDurationMode || 'target'
   );
 });
 

@@ -271,7 +271,9 @@ function updateDrama(db, log, dramaId, req) {
 
 function generateStoryboard(db, log, episodeId, options) {
   const episodeStoryboardService = require('./episodeStoryboardService');
-  const { model, style, storyboard_count, video_duration, aspect_ratio, include_narration, universal_omni_storyboard } = options || {};
+  const { model, style, storyboard_count, video_duration, aspect_ratio, include_narration, universal_omni_storyboard,
+    storyboard_count_source, video_duration_source, video_clip_duration, video_clip_duration_mode, sequence_mode,
+    storyboard_use_first_last_frame, language } = options || {};
   // 转换可能为字符串的数字
   const count = storyboard_count ? Number(storyboard_count) : undefined;
   const duration = video_duration ? Number(video_duration) : undefined;
@@ -285,7 +287,10 @@ function generateStoryboard(db, log, episodeId, options) {
     duration,
     aspect_ratio,
     include_narration,
-    universal_omni_storyboard
+    universal_omni_storyboard,
+    storyboard_count_source || (storyboard_count ? 'manual' : 'auto'),
+    { video_duration_source, video_clip_duration, video_clip_duration_mode, sequence_mode,
+      storyboard_use_first_last_frame, language }
   );
 }
 
@@ -654,9 +659,9 @@ function saveCharacters(db, log, dramaId, req) {
     }
     const now = new Date().toISOString();
     const info = db.prepare(
-      `INSERT INTO characters (drama_id, name, role, description, personality, appearance, image_url, local_path, negative_prompt, sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-    ).run(did, char.name, char.role ?? null, char.description ?? null, char.personality ?? null, char.appearance ?? null, char.image_url ?? null, char.local_path ?? null, char.negative_prompt ?? null, now, now);
+      `INSERT INTO characters (organization_id, drama_id, name, role, description, personality, appearance, image_url, local_path, negative_prompt, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+    ).run(getTenantId() || drama.organization_id || 1, did, char.name, char.role ?? null, char.description ?? null, char.personality ?? null, char.appearance ?? null, char.image_url ?? null, char.local_path ?? null, char.negative_prompt ?? null, now, now);
     characterIds.push(info.lastInsertRowid);
   }
   if (req.episode_id && characterIds.length > 0) {

@@ -26,7 +26,7 @@ function parsePayload(value) {
 
 function isRetryable(message) {
   const text = String(message || '');
-  return !/(用户已取消|不存在|无权限|没有权限|为空|必填|不支持|格式错误|参数错误|项目不存在|剧集不存在)/i.test(text);
+  return !/(BLOCKED_REVIEW|用户已取消|不存在|无权限|没有权限|为空|必填|不支持|格式错误|参数错误|项目不存在|剧集不存在)/i.test(text);
 }
 
 function delayForAttempt(attempt) {

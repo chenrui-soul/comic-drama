@@ -111,8 +111,12 @@ function register(db, { email, password, display_name }) {
       VALUES (?, ?, ?, ?, ?)`).run(normalizedEmail, hashPassword(password), displayName, timestamp, timestamp);
     const userId = userInfo.lastInsertRowid;
     const organizationName = `${displayName}的工作区`;
-    const orgInfo = db.prepare(`INSERT INTO organizations (name, slug, created_by_user_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)`).run(organizationName, slugify(displayName), userId, timestamp, timestamp);
+    const organizationColumns = db.prepare('PRAGMA table_info(organizations)').all().map((column) => column.name);
+    const orgInfo = organizationColumns.includes('created_by_user_id')
+      ? db.prepare(`INSERT INTO organizations (name, slug, created_by_user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)`).run(organizationName, slugify(displayName), userId, timestamp, timestamp)
+      : db.prepare(`INSERT INTO organizations (name, slug, created_at, updated_at)
+        VALUES (?, ?, ?, ?)`).run(organizationName, slugify(displayName), timestamp, timestamp);
     const organizationId = orgInfo.lastInsertRowid;
     db.prepare(`INSERT INTO organization_members (organization_id, user_id, role, created_at)
       VALUES (?, ?, 'owner', ?)`).run(organizationId, userId, timestamp);

@@ -366,12 +366,20 @@
             <el-option label="21:9 宽银幕" value="21:9" />
           </el-select>
           <el-select v-model="videoClipDuration" style="width: 105px" @change="() => saveProjectSettings(false)">
-            <el-option label="4秒/段" :value="4" />
-            <el-option label="5秒/段" :value="5" />
-            <el-option label="8秒/段" :value="8" />
-            <el-option label="10秒/段" :value="10" />
-            <el-option label="12秒/段" :value="12" />
-            <el-option label="15秒/段" :value="15" />
+            <el-option
+              v-for="seconds in videoClipDurationOptions"
+              :key="seconds"
+              :label="`${seconds}秒/段${isVideoClipDurationDisabled(seconds) ? '（当前通道不支持）' : ''}`"
+              :value="seconds"
+              :disabled="isVideoClipDurationDisabled(seconds)"
+            />
+          </el-select>
+          <el-tooltip v-if="videoDurationCapabilityHint" :content="videoDurationCapabilityHint" placement="top">
+            <el-icon class="tip-icon"><InfoFilled /></el-icon>
+          </el-tooltip>
+          <el-select v-model="videoClipDurationMode" style="width: 125px" @change="() => saveProjectSettings(false)">
+            <el-option label="每段约此时长" value="target" />
+            <el-option label="每段最多此时长" value="capacity" />
           </el-select>
           <el-select v-model="scriptLanguage" placeholder="分镜语言" clearable style="width: 105px">
             <el-option label="中文" value="zh" />
@@ -802,6 +810,7 @@
 
       <!-- 6. 分镜生成 -->
       <section id="anchor-storyboard" class="section card">
+        <NarrativePlanReport :episode-id="currentEpisodeId" />
         <h2 class="section-title">
           <span>5. 分镜生成</span>
           <span class="step-desc">根据剧本、角色、场景自动生成分镜头脚本</span>
@@ -1549,6 +1558,8 @@
                   </el-button>
                 </template>
               </div>
+              <p v-if="getSbVideo(sb.id)?.actual_duration_ms" class="sb-media-duration">请求 {{ getSbVideo(sb.id).duration }} 秒 · 成片 {{ (getSbVideo(sb.id).actual_duration_ms / 1000).toFixed(2) }} 秒</p>
+              <el-alert v-if="getSbVideo(sb.id)?.duration_warning" :title="getSbVideo(sb.id).duration_warning" type="warning" :closable="false" />
               <!-- 视频历史条：有多条历史时显示，点击可切换 -->
               <div v-if="getVideoStripItems(sb.id).length" class="sb-videos-strip">
                 <el-tooltip content="历史视频：点击可切换为当前视频" placement="top" :show-arrow="false">
@@ -1741,6 +1752,8 @@
     <!-- 添加/编辑角色弹窗 -->
     <el-dialog v-model="showEditCharacter" :title="editCharacterForm?.id ? '编辑角色' : '添加角色'" width="75%" @close="onCloseCharDialog">
       <el-form v-if="editCharacterForm" label-width="90px">
+        <AssetPromptStatus type="character" :asset-id="editCharacterForm.id" :info="editCharacterForm.prompt_status" />
+        <AssetViewBundle type="character" :asset="editCharacterForm" @reference-changed="onAssetViewReference" />
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
           <div class="ref-image-zone">
@@ -1891,6 +1904,8 @@
     <!-- 编辑道具弹窗 -->
     <el-dialog v-model="showEditProp" :title="editPropForm?.id ? '编辑道具' : '添加道具'" width="75%" @close="onClosePropDialog">
       <el-form v-if="editPropForm" label-width="90px">
+        <AssetPromptStatus type="prop" :asset-id="editPropForm.id" :info="editPropForm.prompt_status" />
+        <AssetViewBundle type="prop" :asset="editPropForm" @reference-changed="onAssetViewReference" />
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
           <div class="ref-image-zone">
@@ -1950,6 +1965,8 @@
     <!-- 添加/编辑场景弹窗 -->
     <el-dialog v-model="showEditScene" :title="editSceneForm?.id ? '编辑场景' : '添加场景'" width="75%" @close="onCloseSceneDialog">
       <el-form v-if="editSceneForm" label-width="90px">
+        <AssetPromptStatus type="scene" :asset-id="editSceneForm.id" :info="editSceneForm.prompt_status" />
+        <AssetViewBundle type="scene" :asset="editSceneForm" @reference-changed="onAssetViewReference" />
         <!-- 参考图上传区（新增/编辑均显示） -->
         <el-form-item label="参考图">
           <div class="ref-image-zone">
@@ -2668,6 +2685,8 @@
 </template>
 
 <script setup>
+import AssetPromptStatus from '@/components/AssetPromptStatus.vue'
+import AssetViewBundle from '@/components/AssetViewBundle.vue'
 import { ref, computed, onMounted, onBeforeUnmount, watch, reactive, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '@/utils/apiFetch'
@@ -2689,10 +2708,12 @@ import { imagesAPI } from '@/api/images'
 import { videosAPI } from '@/api/videos'
 import VideoDownloadDialog from '@/components/VideoDownloadDialog.vue'
 import { storyboardsAPI } from '@/api/storyboards'
+import NarrativePlanReport from '@/components/NarrativePlanReport.vue'
 import { uploadAPI } from '@/api/upload'
 import { characterLibraryAPI } from '@/api/characterLibrary'
 import { sceneLibraryAPI } from '@/api/sceneLibrary'
 import { propLibraryAPI } from '@/api/propLibrary'
+import { generationSettingsAPI } from '@/api/prompts'
 import { videoPromptRulesAPI } from '@/api/videoPromptRules'
 import { runUniversalPolishBatch } from '@/utils/universalPolishBatch'
 import { parseScriptIntoEpisodes, episodesListToPlainScript } from '@/utils/scriptEpisodes'
@@ -2742,7 +2763,10 @@ function openAiConfig(tab = 'configs') {
   showAiConfigDialog.value = true
 }
 watch(showAiConfigDialog, (open) => {
-  if (!open) invalidateActiveVideoAiConfigCache()
+  if (!open) {
+    invalidateActiveVideoAiConfigCache()
+    getActiveVideoAiConfig().catch(() => {})
+  }
 })
 const storyInput = ref('')
 const storyStyle = ref('')
@@ -2894,7 +2918,17 @@ let pipelineResolveResume = null
 // 倒计时（两个生成阶段之间的确认窗口）
 const pipelineCountdown = ref(0)      // 剩余秒数，0 表示不在倒计时
 const pipelineCountdownMsg = ref('')  // 倒计时说明文字
+const pipelineConcurrency = ref(3)
+const pipelineVideoConcurrency = ref(3)
 const pipelineActiveTasks = reactive(new Set())
+
+async function loadPipelineConcurrency() {
+  try {
+    const res = await generationSettingsAPI.get()
+    pipelineConcurrency.value = Math.max(1, Number(res?.concurrency) || 3)
+    pipelineVideoConcurrency.value = Math.max(1, Number(res?.video_concurrency) || 3)
+  } catch (_) {}
+}
 
 /**
  * 带并发度的批量执行器。
@@ -2996,6 +3030,12 @@ const {
   onDeleteSceneLibrary, onAddSceneToLibrary, onAddSceneToMaterialLibrary,
   onAddSceneFromLibrary, onAddDramaSceneToEpisode,
 } = useScenes({ store, dramaId, currentEpisodeId, getSelectedStyle, scriptLanguage, loadDrama, pollTask, pollUntilResourceHasImage, hasAssetImage, dramaAPI })
+
+async function onAssetViewReference(item) {
+  const form = item.type === 'character' ? editCharacterForm.value : item.type === 'scene' ? editSceneForm.value : editPropForm.value
+  if (form?.id === item.id) { form.image_url = item.image_url; form.local_path = item.local_path }
+  await loadDrama()
+}
 
 async function onGenerateCharacters() {
   trackFilmCreateAction('generate_characters_click')
@@ -3335,6 +3375,59 @@ const exportingStoryboardSheet = ref(false)
 const lastFrameUseFirstLayoutLock = ref(true)
 const gridMode = ref('single') // 序列图模式：single / quad_grid / nine_grid
 
+const videoClipDurationOptions = [4, 5, 8, 10, 12, 15, 20, 25, 30]
+const videoClipDurationMode = ref('target')
+const activeVideoDurationCapability = ref({ mode: 'range', min: 1, max: 15, step: 1, allowed_seconds: [] })
+
+function parseVideoConfigSettings(settings) {
+  if (!settings) return {}
+  if (typeof settings === 'object') return settings
+  try {
+    const parsed = JSON.parse(settings)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (_) {
+    return {}
+  }
+}
+
+function resolveFrontendVideoDurationCapability(cfg) {
+  const settings = parseVideoConfigSettings(cfg?.settings)
+  const raw = settings.video_duration || settings.duration_capability || settings.videoDurationCapability
+  const cap = raw && typeof raw === 'object' ? raw : {}
+  const mode = String(cap.mode || '').toLowerCase()
+  if ((mode === 'fixed' || Array.isArray(cap.allowed_seconds)) && Array.isArray(cap.allowed_seconds)) {
+    const allowed = [...new Set(cap.allowed_seconds.map((v) => Math.round(Number(v))).filter((v) => Number.isFinite(v) && v > 0))]
+      .sort((a, b) => a - b)
+    if (allowed.length) return { mode: 'fixed', min: allowed[0], max: allowed[allowed.length - 1], step: 1, allowed_seconds: allowed }
+  }
+  if (mode === 'range' || cap.min_seconds != null || cap.max_seconds != null) {
+    const min = Math.max(1, Math.round(Number(cap.min_seconds) || 1))
+    const max = Math.max(min, Math.round(Number(cap.max_seconds) || min))
+    const step = Math.max(1, Math.round(Number(cap.step_seconds) || 1))
+    return { mode: 'range', min, max, step, allowed_seconds: [] }
+  }
+  const protocol = String(cfg?.api_protocol || cfg?.provider || '').toLowerCase()
+  const model = videoModelNameFromAiConfig(cfg).toLowerCase()
+  if (/seedance[-_]?2(?:[._-]?5)|seedance2(?:[._-]?5)|2[._-]5/.test(model)) return { mode: 'range', min: 4, max: 30, step: 1, allowed_seconds: [] }
+  return { mode: 'range', min: protocol === 'doubao_manager' ? 1 : 4, max: 15, step: 1, allowed_seconds: [] }
+}
+
+function isVideoClipDurationDisabled(seconds) {
+  const cap = activeVideoDurationCapability.value || {}
+  if (cap.mode === 'fixed' && Array.isArray(cap.allowed_seconds) && cap.allowed_seconds.length) return !cap.allowed_seconds.includes(seconds)
+  const min = Number(cap.min) || 1
+  const max = Number(cap.max) || 15
+  const step = Math.max(1, Number(cap.step) || 1)
+  return seconds < min || seconds > max || ((seconds - min) % step !== 0)
+}
+
+const videoDurationCapabilityHint = computed(() => {
+  const cap = activeVideoDurationCapability.value
+  if (!cap) return ''
+  if (cap.mode === 'fixed' && cap.allowed_seconds?.length) return `当前视频通道固定支持：${cap.allowed_seconds.join('、')} 秒`
+  return `当前视频通道支持：${cap.min}-${cap.max} 秒${cap.step > 1 ? `，步长 ${cap.step} 秒` : ''}`
+})
+
 // ── 剧本长度 → 估算总时长；自动分镜数与项目「每段秒数」(videoClipDuration) 对齐 ──
 
 /** 用于估算的每段时长（秒），与一键成片处「X秒/段」一致 */
@@ -3383,7 +3476,7 @@ const scriptEstimateVideoDurationHint = computed(() => {
 const scriptEstimateVideoDurationTitle = computed(() => {
   const e = scriptStoryboardEstimate.value
   if (!e) return ''
-  return `按当前剧本文本约 ${e.len} 个字符（含标点；常见汉字在浏览器里一字一算，并非按 UTF-8 字节翻倍）、短剧公式 round(10+(字符/600)×60) 粗估总时长约 ${e.sec} 秒；未填输入框时该值会作为约束传给生成接口。仅供参考`
+  return `按当前剧本文本约 ${e.len} 个字符（含标点；常见汉字在浏览器里一字一算，并非按 UTF-8 字节翻倍）、短剧公式 round(10+(字符/600)×60) 粗估总时长约 ${e.sec} 秒；未填输入框时该值仅作为参考，实际按完整语义与自然闭合规划`
 })
 
 const scriptEstimateStoryboardHint = computed(() => {
@@ -4639,6 +4732,8 @@ async function loadDrama() {
     }
     projectAspectRatio.value = (d.metadata && d.metadata.aspect_ratio) ? d.metadata.aspect_ratio : '16:9'
     videoClipDuration.value = (d.metadata && d.metadata.video_clip_duration) ? Number(d.metadata.video_clip_duration) : 5
+    videoClipDurationMode.value = d.metadata?.video_clip_duration_mode === 'capacity' ? 'capacity' : 'target'
+    await getActiveVideoAiConfig()
     storyboardIncludeNarration.value = !!(d.metadata && d.metadata.storyboard_include_narration)
     storyboardUniversalOmni.value = !!(d.metadata && d.metadata.storyboard_universal_omni)
     storyboardUseFirstLastFrame.value = !!(d.metadata && d.metadata.storyboard_use_first_last_frame)
@@ -5038,6 +5133,7 @@ async function saveProjectSettings(includeGenerationStyle = false) {
     story_style: storyStyle.value || undefined,
     aspect_ratio: projectAspectRatio.value || '16:9',
     video_clip_duration: videoClipDuration.value || 5,
+    video_clip_duration_mode: videoClipDurationMode.value === 'capacity' ? 'capacity' : 'target',
     storyboard_include_narration: !!storyboardIncludeNarration.value,
     storyboard_universal_omni: !!storyboardUniversalOmni.value,
     storyboard_use_first_last_frame: !!storyboardUseFirstLastFrame.value,
@@ -6289,7 +6385,7 @@ function collectSbOmniReferenceAbsoluteUrls(sb) {
   for (const p of getSbSelectedProps(sb.id)) {
     if (hasAssetImage(p)) pushAbs(assetImageUrl(p))
   }
-  return urls.slice(0, 10)
+  return urls
 }
 
 /** 非 Seedance2 全能降级：仅场景参考图（若有） */
@@ -6322,8 +6418,10 @@ async function getActiveVideoAiConfig() {
     const list = Array.isArray(rows) ? rows : []
     const active = list.filter((c) => c.is_active !== false)
     activeVideoAiConfigCache = active.find((c) => c.is_default) || active[0] || null
+    activeVideoDurationCapability.value = resolveFrontendVideoDurationCapability(activeVideoAiConfigCache)
   } catch {
     activeVideoAiConfigCache = null
+    activeVideoDurationCapability.value = { mode: 'range', min: 1, max: 15, step: 1, allowed_seconds: [] }
   }
   activeVideoAiConfigCacheAt = now
   return activeVideoAiConfigCache
@@ -6916,7 +7014,14 @@ async function onGenerateStoryboard() {
       model: undefined,
       style: getSelectedStyle(),
       storyboard_count: getStoryboardCountForApi(),
+      storyboard_count_source: userFilledStoryboardCount() ? 'manual' : 'auto',
       video_duration: getVideoDurationForApi(),
+      video_duration_source: userFilledVideoDuration() ? 'manual' : 'auto',
+      video_clip_duration: Number(videoClipDuration.value),
+      video_clip_duration_mode: videoClipDurationMode.value,
+      sequence_mode: gridMode.value,
+      storyboard_use_first_last_frame: !!storyboardUseFirstLastFrame.value,
+      language: scriptLanguage.value || 'zh',
       aspect_ratio: projectAspectRatio.value || '16:9',
       include_narration: !!storyboardIncludeNarration.value,
       universal_omni_storyboard: !!storyboardUniversalOmni.value,
@@ -7025,7 +7130,7 @@ async function startBatchImageGeneration() {
       return
     }
     batchImageProgress.value = { current: 0, total: todo.length, failed: 0 }
-    const concurrency = todo.length
+    const concurrency = pipelineConcurrency.value || 3
     let doneCount = 0
 
     // 并发执行，使用与 pipeline 相同的并发模型
@@ -7114,7 +7219,7 @@ async function startBatchVideoGeneration() {
     batchVideoProgress.value = { current: 0, total: todo.length, failed: 0 }
     const contiguity = videoFrameContiguity.value
     // 连贯帧模式强制顺序（concurrency=1），普通模式并发
-    const videoConcurrency = contiguity ? 1 : todo.length
+    const videoConcurrency = contiguity ? 1 : (pipelineVideoConcurrency.value || 2)
     let videoDoneCount = 0
     let prevVideoItem = null  // 连贯帧：保存上一条已完成的视频记录
 
@@ -7603,7 +7708,14 @@ async function runOneClickPipeline(textOnly = false) {
           style,
           aspect_ratio: projectAspectRatio.value || '16:9',
           storyboard_count: getStoryboardCountForApi(),
+      storyboard_count_source: userFilledStoryboardCount() ? 'manual' : 'auto',
           video_duration: getVideoDurationForApi(),
+          video_duration_source: userFilledVideoDuration() ? 'manual' : 'auto',
+          video_clip_duration: Number(videoClipDuration.value),
+          video_clip_duration_mode: videoClipDurationMode.value,
+          sequence_mode: gridMode.value,
+          storyboard_use_first_last_frame: !!storyboardUseFirstLastFrame.value,
+          language: scriptLanguage.value || 'zh',
           include_narration: !!storyboardIncludeNarration.value,
           universal_omni_storyboard: !!storyboardUniversalOmni.value,
         })
@@ -7673,7 +7785,7 @@ async function runOneClickPipeline(textOnly = false) {
     // 步骤 5：生成角色图
     {
       const charsWithoutImage = chars.filter((c) => !hasAssetImage(c))
-      const concurrency = charsWithoutImage.length
+      const concurrency = pipelineConcurrency.value
       setPipelineStep(5, `生成角色图（${charsWithoutImage.length} 个，并发 ${concurrency}）...`)
       const { paused } = await runConcurrently(charsWithoutImage, concurrency, async (char) => {
         await checkPause()
@@ -7707,7 +7819,7 @@ async function runOneClickPipeline(textOnly = false) {
     // 步骤 6：生成场景图
     {
       const scenesWithoutImage = sceneList.filter((s) => !hasAssetImage(s))
-      const concurrency = scenesWithoutImage.length
+      const concurrency = pipelineConcurrency.value
       setPipelineStep(6, `生成场景图（${scenesWithoutImage.length} 个，并发 ${concurrency}）...`)
       await checkPause()
       const { paused } = await runConcurrently(scenesWithoutImage, concurrency, async (scene) => {
@@ -7743,7 +7855,7 @@ async function runOneClickPipeline(textOnly = false) {
     // 步骤 7：生成道具图
     {
       const propsWithoutImage = propList.filter((p) => !hasAssetImage(p))
-      const concurrency = propsWithoutImage.length
+      const concurrency = pipelineConcurrency.value
       setPipelineStep(7, `生成道具图（${propsWithoutImage.length} 个，并发 ${concurrency}）...`)
       await checkPause()
       const { paused } = await runConcurrently(propsWithoutImage, concurrency, async (prop) => {
@@ -7790,7 +7902,7 @@ async function runOneClickPipeline(textOnly = false) {
       await loadStoryboardMedia()
       boards = store.storyboards || []
       const boardsWithoutImg = boards.filter((sb) => !hasSbImage(sb))
-      const concurrency = boardsWithoutImg.length
+      const concurrency = pipelineConcurrency.value
       setPipelineStep(8, `生成分镜图（${boardsWithoutImg.length} 个，并发 ${concurrency}）...`)
       const { paused } = await runConcurrently(boardsWithoutImg, concurrency, async (sb) => {
         await checkPause()
@@ -7850,7 +7962,7 @@ async function runOneClickPipeline(textOnly = false) {
         }
         return !!getSbFirstFrameUrl(sb)
       })
-      const concurrency = boards2.length
+      const concurrency = pipelineVideoConcurrency.value
       setPipelineStep(9, `生成分镜视频（${boards2.length} 个，并发 ${concurrency}）...`)
       const { paused } = await runConcurrently(boards2, concurrency, async (sb) => {
         await checkPause()
@@ -7976,7 +8088,7 @@ async function runRepairPipeline() {
     }
     const charsWithoutImage = chars.filter((c) => !hasAssetImage(c))
     {
-      const concurrency = charsWithoutImage.length
+    const concurrency = pipelineConcurrency.value
       pipelineCurrentStep.value = `正在生成角色图（并发${concurrency}）...`
       const { paused } = await runConcurrently(charsWithoutImage, concurrency, async (char) => {
         await checkPause()
@@ -8024,7 +8136,7 @@ async function runRepairPipeline() {
     }
     const scenesWithoutImage = sceneList.filter((s) => !hasAssetImage(s))
     {
-      const concurrency = scenesWithoutImage.length
+    const concurrency = pipelineConcurrency.value
       pipelineCurrentStep.value = `正在生成场景图（并发${concurrency}）...`
       const { paused } = await runConcurrently(scenesWithoutImage, concurrency, async (scene) => {
         await checkPause()
@@ -8072,7 +8184,7 @@ async function runRepairPipeline() {
     }
     const propsWithoutImage2 = propList2.filter((p) => !hasAssetImage(p))
     {
-      const concurrency = propsWithoutImage2.length
+    const concurrency = pipelineConcurrency.value
       pipelineCurrentStep.value = `正在生成道具图（并发${concurrency}）...`
       await checkPause()
       const { paused } = await runConcurrently(propsWithoutImage2, concurrency, async (prop) => {
@@ -8114,7 +8226,14 @@ async function runRepairPipeline() {
         const res = await dramaAPI.generateStoryboard(episodeId, {
           aspect_ratio: projectAspectRatio.value || '16:9',
           storyboard_count: getStoryboardCountForApi(),
+      storyboard_count_source: userFilledStoryboardCount() ? 'manual' : 'auto',
           video_duration: getVideoDurationForApi(),
+          video_duration_source: userFilledVideoDuration() ? 'manual' : 'auto',
+          video_clip_duration: Number(videoClipDuration.value),
+          video_clip_duration_mode: videoClipDurationMode.value,
+          sequence_mode: gridMode.value,
+          storyboard_use_first_last_frame: !!storyboardUseFirstLastFrame.value,
+          language: scriptLanguage.value || 'zh',
           include_narration: !!storyboardIncludeNarration.value,
           universal_omni_storyboard: !!storyboardUniversalOmni.value,
         })
@@ -8148,7 +8267,7 @@ async function runRepairPipeline() {
     await loadStoryboardMedia()
     const boardsWithoutImg = boards.filter((sb) => !hasSbImage(sb))
     {
-      const concurrency = boardsWithoutImg.length
+      const concurrency = pipelineConcurrency.value
       pipelineCurrentStep.value = `正在生成分镜图（并发${concurrency}）...`
       const { paused } = await runConcurrently(boardsWithoutImg, concurrency, async (sb) => {
         await checkPause()
@@ -8191,7 +8310,7 @@ async function runRepairPipeline() {
       return !!getSbFirstFrameUrl(sb)
     })
     {
-      const concurrency = boards2.length
+      const concurrency = pipelineVideoConcurrency.value
       pipelineCurrentStep.value = `正在生成分镜视频（并发${concurrency}）...`
       const { paused } = await runConcurrently(boards2, concurrency, async (sb) => {
         await checkPause()
@@ -8289,6 +8408,7 @@ function applyRouteToStore() {
 }
 
 onMounted(async () => {
+  loadPipelineConcurrency()
   applyRouteToStore()
 })
 

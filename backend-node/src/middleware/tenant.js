@@ -16,6 +16,21 @@ function resolveDramaId(db, req) {
     return row?.drama_id || null;
   }
 
+  match = path.match(/^\/asset-views\/(character|scene|prop)\/(\d+)/);
+  if (match) {
+    const table = { character: 'characters', scene: 'scenes', prop: 'props' }[match[1]];
+    return db.prepare(`SELECT drama_id FROM ${table} WHERE id = ? AND deleted_at IS NULL`).get(firstNumber(match[2]))?.drama_id || null;
+  }
+  match = path.match(/^\/asset-prompts\/(character|scene|prop)\/(\d+)/);
+  if (match) {
+    const table = { character: 'characters', scene: 'scenes', prop: 'props' }[match[1]];
+    return db.prepare(`SELECT drama_id FROM ${table} WHERE id = ? AND deleted_at IS NULL`).get(firstNumber(match[2]))?.drama_id || null;
+  }
+  match = path.match(/^\/asset-view-bundles\/([^/]+)/);
+  if (match) {
+    return db.prepare('SELECT drama_id FROM asset_view_bundles WHERE id = ?').get(match[1])?.drama_id || null;
+  }
+
   const resourceQueries = [
     [/^\/characters\/(\d+)/, 'SELECT drama_id FROM characters WHERE id = ? AND deleted_at IS NULL'],
     [/^\/scenes\/(\d+)/, 'SELECT drama_id FROM scenes WHERE id = ? AND deleted_at IS NULL'],
@@ -82,6 +97,17 @@ function authorizeTenantResource(db) {
       for (const [pattern, kind] of nested) {
         const match = req.path.match(pattern);
         if (match) check(kind, match[1]);
+      }
+      const assetMatch = req.path.match(/^\/asset-(?:views|prompts)\/(character|scene|prop)\/(\d+)/);
+      if (assetMatch) {
+        const table = { character: 'characters', scene: 'scenes', prop: 'props' }[assetMatch[1]];
+        const row = db.prepare(`SELECT COALESCE(d.organization_id, x.organization_id) AS organization_id FROM ${table} x LEFT JOIN dramas d ON d.id=x.drama_id WHERE x.id=? AND x.deleted_at IS NULL`).get(firstNumber(assetMatch[2]));
+        if (!row || Number(row.organization_id) !== Number(req.user.organization.id)) throw new Error('Resource outside workspace');
+      }
+      const bundleMatch = req.path.match(/^\/asset-view-bundles\/([^/]+)/);
+      if (bundleMatch) {
+        const row = db.prepare('SELECT d.organization_id FROM asset_view_bundles b JOIN dramas d ON d.id=b.drama_id WHERE b.id=? AND d.deleted_at IS NULL').get(bundleMatch[1]);
+        if (!row || Number(row.organization_id) !== Number(req.user.organization.id)) throw new Error('Resource outside workspace');
       }
       dramaId = resolveDramaId(db, req);
     } catch (err) {

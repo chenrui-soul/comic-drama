@@ -2,9 +2,9 @@
   <div class="rule-skill-manager">
     <div class="manager-hero">
       <div>
-        <div class="eyebrow">SKILLS</div>
-        <h2>Skills 管理</h2>
-        <p>按故事剧本、资产生成和视频提示词调用途管理规则版本。导入与编辑都会生成新版本，不会覆盖平台内置规则。</p>
+        <div class="eyebrow">RULES &amp; SKILLS</div>
+        <h2>提示词与 Skill</h2>
+        <p>集中管理提示词覆盖、故事剧本 Skill、资产 Skill 和视频提示词 Skill。导入与编辑都会生成新版本，不会覆盖平台内置规则。</p>
       </div>
       <el-button type="primary" :loading="busy" @click="triggerImport">
         <el-icon><Upload /></el-icon>
@@ -38,7 +38,8 @@
           <article v-for="pack in storyPacks" :key="pack.id" class="pack-card">
             <div class="pack-heading"><div><div class="pack-kind">故事剧本</div><h3>{{ pack.name }}</h3></div><el-tag size="small" :type="isCreativeSelected(pack) ? 'success' : 'info'">v{{ pack.version }}</el-tag></div>
             <p>{{ pack.source || '平台内置规则包' }}</p><div class="file-list">{{ (pack.active_paths || []).slice(0, 4).join(' · ') || 'SKILL.md' }}</div>
-            <div class="pack-actions"><el-button size="small" type="primary" plain :disabled="!dramaId" @click="selectCreative(pack)">{{ isCreativeSelected(pack) ? '当前项目已用' : '用于本项目' }}</el-button><el-button size="small" @click="editPack(pack, 'creative')">编辑</el-button><a :href="creativeSkillRulesAPI.exportUrl(pack.id)" download>导出</a></div>
+            <SkillCompatibility :report="pack.compatibility" />
+            <div class="pack-actions"><el-button size="small" type="primary" plain :disabled="!dramaId || !!pack.compatibility?.errors?.length" @click="selectCreative(pack)">{{ isCreativeSelected(pack) ? '当前项目已用' : '用于本项目' }}</el-button><el-button size="small" @click="editPack(pack, 'creative')">编辑</el-button><a :href="creativeSkillRulesAPI.exportUrl(pack.id)" download>导出</a></div>
           </article>
           <div v-if="!storyPacks.length" class="empty-card">还没有故事剧本 Skill，可导入 ZIP、JSON 或 SKILL.md。</div>
         </div>
@@ -59,7 +60,8 @@
           <article v-for="pack in assetPacks" :key="pack.id" class="pack-card">
             <div class="pack-heading"><div><div class="pack-kind">人物 / 场景 / 道具</div><h3>{{ pack.name }}</h3></div><el-tag size="small" :type="isCreativeSelected(pack) ? 'success' : 'info'">v{{ pack.version }}</el-tag></div>
             <p>{{ pack.source || '平台内置规则包' }}</p><div class="file-list">{{ (pack.active_paths || []).slice(0, 4).join(' · ') || 'SKILL.md' }}</div>
-            <div class="pack-actions"><el-button size="small" type="primary" plain :disabled="!dramaId" @click="selectCreative(pack)">{{ isCreativeSelected(pack) ? '当前项目已用' : '用于本项目' }}</el-button><el-button size="small" @click="editPack(pack, 'creative')">编辑</el-button><a :href="creativeSkillRulesAPI.exportUrl(pack.id)" download>导出</a></div>
+            <SkillCompatibility :report="pack.compatibility" />
+            <div class="pack-actions"><el-button size="small" type="primary" plain :disabled="!dramaId || !!pack.compatibility?.errors?.length" @click="selectCreative(pack)">{{ isCreativeSelected(pack) ? '当前项目已用' : '用于本项目' }}</el-button><el-button size="small" @click="editPack(pack, 'creative')">编辑</el-button><a :href="creativeSkillRulesAPI.exportUrl(pack.id)" download>导出</a></div>
           </article>
           <div v-if="!assetPacks.length" class="empty-card">还没有资产 Skill，可导入 ZIP、JSON 或 SKILL.md。</div>
         </div>
@@ -84,8 +86,10 @@
     </el-tabs>
 
     <el-dialog v-model="editor.open" title="编辑 Skill（保存为新版本）" width="min(900px, 92vw)" destroy-on-close>
-      <p class="editor-hint">只编辑 SKILL.md 正文。保存后会创建新的自定义版本，原版本仍可继续使用。</p>
-      <el-input v-model="editor.content" type="textarea" :rows="22" placeholder="请输入 Skill 规则" />
+      <p class="editor-hint">可选择包内文本文件编辑。保存创建新版本；只有勾选下方选项才切换当前项目，已有提示词不会自动重写。</p>
+      <el-select v-model="editor.path" style="width:100%;margin-bottom:12px"><el-option v-for="file in editor.files" :key="file.path" :label="file.path" :value="file.path" /></el-select>
+      <el-input v-if="editor.files.some(f => f.path === editor.path)" v-model="editor.files.find(f => f.path === editor.path).content" type="textarea" :rows="22" placeholder="请输入 Skill 规则" />
+      <el-checkbox v-if="dramaId" v-model="editor.apply">保存后用于当前项目（其他项目保持原绑定）</el-checkbox>
       <template #footer><el-button @click="editor.open = false">取消</el-button><el-button type="primary" :loading="busy" @click="saveEdited">保存新版本</el-button></template>
     </el-dialog>
     <el-dialog v-model="importDialog.open" title="导入规则包" width="440px">
@@ -101,10 +105,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import PromptEditor from '@/components/PromptEditor.vue'
+import SkillCompatibility from '@/components/SkillCompatibility.vue'
 import { videoPromptRulesAPI } from '@/api/videoPromptRules'
 import { creativeSkillRulesAPI } from '@/api/creativeSkillRules'
 
@@ -117,19 +122,26 @@ const videoPacks = ref([])
 const creativePacks = ref([])
 const videoSettings = ref({ pack_id: null, name: '平台内置视频规则', version: '', auto_polish: true, append_style: true })
 const creativeSettings = ref({ story_pack_id: null, asset_pack_id: null, story_name: '平台内置故事规则', asset_name: '平台内置资产规则' })
-const editor = ref({ open: false, pack: null, kind: '' , content: '' })
+const editor = ref({ open: false, pack: null, kind: '', files: [], path: '', apply: false })
 const storyPacks = computed(() => creativePacks.value.filter((p) => p.kind === 'story'))
 const assetPacks = computed(() => creativePacks.value.filter((p) => p.kind === 'asset'))
 
+let loadSequence = 0
 async function load() {
+  const sequence = ++loadSequence, dramaId = props.dramaId
   try {
     const [video, creative] = await Promise.all([videoPromptRulesAPI.list(), creativeSkillRulesAPI.list()])
+    if (sequence !== loadSequence) return
     videoPacks.value = video?.packs || []
     creativePacks.value = creative?.packs || []
-    if (props.dramaId) {
-      const [videoProject, creativeProject] = await Promise.all([videoPromptRulesAPI.getProject(props.dramaId), creativeSkillRulesAPI.getProject(props.dramaId)])
+    if (dramaId) {
+      const [videoProject, creativeProject] = await Promise.all([videoPromptRulesAPI.getProject(dramaId), creativeSkillRulesAPI.getProject(dramaId)])
+      if (sequence !== loadSequence) return
       videoSettings.value = { ...videoSettings.value, ...videoProject }
       creativeSettings.value = { ...creativeSettings.value, ...creativeProject }
+    } else {
+      videoSettings.value = { pack_id: null, auto_polish: true, append_style: true }
+      creativeSettings.value = { story_pack_id: null, asset_pack_id: null }
     }
   } catch (_) {
     ElMessage.error('提示词与 Skill 加载失败')
@@ -169,20 +181,25 @@ async function saveVideoSettings() {
   ElMessage.success('视频 Skill 配置已保存')
 }
 async function selectVideo(pack) { if (!props.dramaId) return ElMessage.warning('请从具体项目打开 AI 配置'); videoSettings.value.pack_id = pack.id; await saveVideoSettings() }
-function editPack(pack, kind) { const skill = (pack.files || []).find((f) => /(^|\/)SKILL\.md$/i.test(f.path)); editor.value = { open: true, pack, kind, content: skill?.content || '' } }
+function editPack(pack, kind) { const files = (pack.files || []).map(f => ({ ...f })); const skill = files.find(f => /(^|\/)SKILL\.md$/i.test(f.path)); editor.value = { open: true, pack, kind, files, path: skill?.path || files[0]?.path, apply: false } }
 async function saveEdited() {
-  if (!editor.value.content.trim()) return ElMessage.warning('SKILL.md 不能为空')
+  if (!editor.value.files.find(f => /(^|\/)SKILL\.md$/i.test(f.path))?.content.trim()) return ElMessage.warning('SKILL.md 不能为空')
   busy.value = true
   try {
     const p = editor.value.pack
-    const files = (p.files || []).map((f) => /(^|\/)SKILL\.md$/i.test(f.path) ? { ...f, content: editor.value.content } : { path: f.path, content: f.content })
+    const files = editor.value.files.map(f => ({ path: f.path, content: f.content }))
     const api = editor.value.kind === 'creative' ? creativeSkillRulesAPI : videoPromptRulesAPI
-    const out = await api.importFiles({ name: p.name, version: `${p.version}-custom`, kind: p.kind, files, source: `基于 ${p.name} v${p.version} 编辑` })
+    const out = await api.importFiles({ name: p.name, version: `${p.version.split('-custom')[0]}-custom${Date.now()}`, kind: p.kind, files, source: `基于 ${p.name} v${p.version} 编辑` })
+    if (editor.value.apply && props.dramaId && out?.pack) {
+      if (editor.value.kind === 'creative') await selectCreative(out.pack)
+      else await selectVideo(out.pack)
+    }
     editor.value.open = false
-    ElMessage.success(`已保存 ${out?.pack?.name || p.name} v${out?.pack?.version || ''}`)
+    ElMessage.success(editor.value.apply ? '新版本已保存并绑定当前项目；已有提示词需重新编译才使用新规则' : '新版本已保存，项目仍使用原绑定；可点击“用于本项目”切换')
     await load()
   } catch (e) { ElMessage.error(e?.message || '保存失败') } finally { busy.value = false }
 }
+watch(() => props.dramaId, load)
 onMounted(load)
 </script>
 

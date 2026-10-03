@@ -289,14 +289,14 @@ ${ld}
 - Realistic physical scale and relative proportions of all major props (only props actually present in the shot; sizes must match the story's era/setting; nothing exaggerated or distorted).
 - Overall visual weight balance (character remains the clear focal point; all props stay secondary environmental elements).
 
-【ALLOWED + ENCOURAGED CINEMATIC EVOLUTION (5-15s videos — support declared movement with meaningful change)】
-- The last frame MUST show visible, cumulative framing evolution driven by the declared camera_movement over the full clip duration (typically 5-15 seconds). Evolution should be noticeable, not just tiny micro-adjustments.
+【ALLOWED + ENCOURAGED CINEMATIC EVOLUTION (actual clip duration — support declared movement with meaningful change)】
+- The last frame MUST show visible, cumulative framing evolution driven by the declared camera_movement over the full clip duration. For clips longer than 15 seconds, include clear intermediate beats without adding new plot events. Evolution should be noticeable, not just tiny micro-adjustments.
 - Examples (larger duration → larger allowed change):
   - Slow push-in over 8-12s+: last frame noticeably tighter on the character (higher screen occupancy), background more compressed.
   - Handheld / tracking: natural framing drift, slight imperfect composition shifts, and movement-induced offsets are desirable and expected.
   - Pan / orbit / follow: clear natural entry/exit of elements on sides or minor camera drift.
 - Hard lock remains: core character placement (no L/R swap), realistic physical sizes of all props, basic spatial relationships, and perspective must stay consistent.
-- Goal: First and last frames must read as the same continuous physical scene and take, but with enough visual progression that the 5-15s video generated from them actually feels dynamic and realizes the declared movement, instead of looking nearly static or locked-off.
+- Goal: First and last frames must read as the same continuous physical scene and take, but with enough visual progression that the generated video actually feels dynamic and realizes the declared movement, instead of looking nearly static or locked-off.
 
 Violating hard lock = failure. Insufficient evolution that suppresses the movement = also bad result.`);
     } else {
@@ -308,14 +308,14 @@ ${ld}
 - 所有主要道具的真实物理尺寸与相对比例（仅写本分镜实际出现的道具，尺度须符合剧本时代背景，所有物件不得夸大或失真；古代场景严禁出现智能手机、遥控器等现代物品）。
 - 整体画面重心与基本平衡感（主角仍是视觉焦点，所有道具均为次要环境元素）。
 
-【允许且推荐的电影化演化（5-15秒视频，强烈支持 declared movement）】
-- 尾帧必须根据本分镜的 movement 和视频时长（通常5-15秒）进行有意义的取景演化，而非微调。
+【允许且推荐的电影化演化（按本镜实际时长，强烈支持 declared movement）】
+- 尾帧必须根据本分镜的 movement 和实际视频时长进行有意义的取景演化；超过15秒时增加中间节拍，但不得新增剧情。
 - 示例（时长越长，演化幅度可越大）：
   - 缓推（slow push-in）5-10秒+：尾帧人物画面占比应明显大于首帧，背景明显更被压缩，取景更紧。
   - 手持跟拍：允许自然的取景晃动、轻微不完美偏移、以及随运动产生的构图漂移。
   - 横摇/环绕/跟拍：画面可有清晰的左右进入/退出变化或机位自然漂移。
 - 硬锁：主要角色核心站位不左右互换、主要道具真实尺寸与基本相对位置不变、所有物体保持真实物理尺度与透视。
-- 目标：首尾帧之间要有足够视觉差异，让基于它们的5-15秒视频真正“动”起来，充分实现声明的运镜效果，而不是几乎定格。
+- 目标：首尾帧之间要有足够视觉差异，让基于它们的视频真正“动”起来，充分实现声明的运镜效果，而不是几乎定格。
 
 违背硬锁 = 生成失败；演化幅度过小导致运镜失效也属于不理想结果。`);
     }

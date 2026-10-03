@@ -45,19 +45,19 @@ function deleteProp(db, log) {
 
 function generateImage(db, log) {
   const propImageGenerationService = require('../services/propImageGenerationService');
-  return (req, res) => {
+  return async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return response.badRequest(res, '无效的ID');
     const model = req.body?.model != null ? String(req.body.model).trim() || null : null;
     const style = req.body?.style != null ? String(req.body.style).trim() || null : null;
     try {
-      const taskId = propImageGenerationService.generatePropImage(db, log, id, { model, style });
+      const taskId = await propImageGenerationService.generatePropImage(db, log, id, { model, style, prompt_policy: req.body?.prompt_policy });
       response.success(res, { task_id: taskId });
     } catch (err) {
       if (err.message === '道具不存在') return response.notFound(res, err.message);
       if (err.message === '道具没有图片提示词') return response.badRequest(res, err.message);
       log.error('generatePropImage failed', { error: err.message });
-      response.internalError(res, err.message || '生成失败');
+      response.error(res,err.status || 500,'ASSET_PROMPT_ERROR',err.message || '生成失败');
     }
   };
 }
@@ -97,7 +97,7 @@ function addToLibrary(db, log) {
     if (!out.ok) {
       if (out.error === 'prop not found') return response.notFound(res, '道具不存在');
       if (out.error === 'unauthorized') return response.forbidden(res, '无权限');
-      return response.badRequest(res, out.error);
+      return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
     }
     response.success(res, { message: '已加入本剧道具库', item: out.item });
   };
@@ -110,7 +110,7 @@ function addToMaterialLibrary(db, log) {
     const out = propLibraryService.addPropToMaterialLibrary(db, log, id);
     if (!out.ok) {
       if (out.error === 'prop not found') return response.notFound(res, '道具不存在');
-      return response.badRequest(res, out.error);
+      return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
     }
     response.success(res, { message: '已加入全局素材库', item: out.item });
   };
@@ -132,15 +132,15 @@ function generatePropPrompt(db, log, cfg) {
     if (isNaN(id)) return response.badRequest(res, '无效的ID');
     try {
       const body = req.body || {};
-      const out = await propService.generatePropPromptOnly(db, log, cfg, id, body.model || undefined, body.style || undefined);
+      const out = await propService.generatePropPromptOnly(db, log, cfg, id, body.model || undefined, body.style || undefined, body);
       if (!out.ok) {
         if (out.error === 'prop not found') return response.notFound(res, '道具不存在');
-        return response.badRequest(res, out.error);
+        return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
       }
-      response.success(res, { message: '提示词已生成', prompt: out.prompt });
+      response.success(res, { message: '提示词已生成', ...out });
     } catch (err) {
       log.error('generatePropPrompt failed', { error: err.message });
-      response.internalError(res, err.message);
+      response.error(res, err.status || 500, 'PROP_GENERATION_ERROR', err.message);
     }
   };
 }
@@ -153,7 +153,7 @@ function extractPropFromImage(db, log, cfg) {
       const out = await propService.extractPropFromImage(db, log, cfg, id);
       if (!out.ok) {
         if (out.error === 'prop not found') return response.notFound(res, '道具不存在');
-        return response.badRequest(res, out.error);
+        return response.error(res, out.status || 400, 'ASSET_PROMPT_ERROR', out.error, out.prompt_status);
       }
       response.success(res, { message: '道具描述已提取', description: out.description });
     } catch (err) {

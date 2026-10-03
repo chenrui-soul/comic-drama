@@ -82,14 +82,13 @@ async function processPropExtraction(db, log, taskId, episodeId) {
       'SELECT id FROM props WHERE drama_id = ? AND name = ? AND deleted_at IS NULL'
     ).get(dramaId, name);
     if (existing) {
-      // 重新提取时更新描述和提示词（保留已有图片）
+      // Re-extraction updates source facts only. Keep existing/manual prompts; their provenance becomes stale.
       const now = new Date().toISOString();
       db.prepare(
-        'UPDATE props SET type = ?, description = ?, prompt = ?, updated_at = ? WHERE id = ?'
+        'UPDATE props SET type = ?, description = ?, updated_at = ? WHERE id = ?'
       ).run(
         (p.type && String(p.type).trim()) || null,
         (p.description && String(p.description).trim()) || null,
-        (p.image_prompt && String(p.image_prompt).trim()) || null,
         now,
         existing.id
       );
@@ -108,8 +107,8 @@ async function processPropExtraction(db, log, taskId, episodeId) {
     });
     if (prop) {
       createdProps.push(prop);
-      // 若提取时没有生成 prompt，异步后台补生成
-      if (!prop.prompt && _cfg) {
+      // 提取结果只是草稿；所有新增道具均经过项目所选规则编译
+      if (_cfg) {
         setImmediate(() => {
           propService.generatePropPromptOnly(db, log, _cfg, prop.id, undefined, undefined).catch((err) => {
             log.warn('[提取道具] 预生成提示词失败', { prop_id: prop.id, error: err.message });

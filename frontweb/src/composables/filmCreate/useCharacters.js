@@ -1,5 +1,6 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { assetPromptChoice } from '@/utils/assetPromptChoice'
 import { characterAPI } from '@/api/characters'
 import { characterLibraryAPI } from '@/api/characterLibrary'
 import { dramaAPI } from '@/api/drama'
@@ -121,15 +122,15 @@ export function useCharacters(deps) {
       })
       const taskId = res?.task_id
       if (taskId) {
-        const result = await pollTask(taskId, () => loadDrama(), meta)
-        if (result?.status === 'completed') ElMessage.success('角色生成完成')
+        await pollTask(taskId, () => loadDrama(), meta)
+        ElMessage.success('角色生成完成')
       } else {
         await loadDrama()
-        genStore.markDone(meta)
       }
     } catch (e) {
-      genStore.markFailed(meta, e.message || '生成失败')
       ElMessage.error(e.message || '生成失败')
+    } finally {
+      genStore.markDone(meta)
     }
   }
 
@@ -143,6 +144,10 @@ export function useCharacters(deps) {
       polished_prompt: ''
     }
     showEditCharacter.value = true
+    if (editCharacterForm.value?.id) {
+      const editing = editCharacterForm.value
+      characterAPI.promptStatus(editing.id).then(info => { if (editCharacterForm.value === editing) editing.prompt_status = info }).catch(() => {})
+    }
   }
 
   function stopCharacterPromptPoll() {
@@ -169,6 +174,10 @@ export function useCharacters(deps) {
       stages: char.stages ? (typeof char.stages === 'string' ? char.stages : JSON.stringify(char.stages, null, 2)) : '',
     }
     showEditCharacter.value = true
+    if (editCharacterForm.value?.id) {
+      const editing = editCharacterForm.value
+      characterAPI.promptStatus(editing.id).then(info => { if (editCharacterForm.value === editing) editing.prompt_status = info }).catch(() => {})
+    }
     if (!char.polished_prompt && char.id && (char.appearance || char.description)) {
       editCharacterPromptGenerating.value = true
       let elapsed = 0
@@ -267,7 +276,11 @@ export function useCharacters(deps) {
     if (!form?.id) return
     editCharacterPromptGenerating.value = true
     try {
-      const res = await characterAPI.generatePrompt(form.id)
+      const submitted = JSON.stringify(Object.fromEntries(["name","appearance","description"].map(key => [key, form[key] || ''])))
+      const options = { input: Object.fromEntries(["name","appearance","description"].map(key => [key, form[key] || ''])), input_revision: form.prompt_status?.input_revision }
+      const res = await characterAPI.generatePrompt(form.id, undefined, undefined, options)
+      if (form !== editCharacterForm.value || JSON.stringify(Object.fromEntries(["name","appearance","description"].map(key => [key, form[key] || '']))) !== submitted) { ElMessage.warning('编辑内容已变化，请重新编译；本次结果未回填编辑框'); return }
+      form.prompt_status = res.prompt_status
       if (res?.polished_prompt) {
         form.polished_prompt = res.polished_prompt
         ElMessage.success('提示词已生成')
@@ -339,7 +352,8 @@ export function useCharacters(deps) {
     generatingCharIds.add(char.id)
     genStore.markRunning(meta)
     try {
-      const res = await characterAPI.generateImage(char.id, undefined, getSelectedStyle())
+      const options = await assetPromptChoice(characterAPI, char.id)
+      const res = await characterAPI.generateImage(char.id, undefined, getSelectedStyle(), options)
       const taskId = res?.image_generation?.task_id ?? res?.task_id
       if (taskId) {
         const pollRes = await pollTask(taskId, () => loadDrama(), meta)

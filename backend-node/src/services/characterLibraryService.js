@@ -1,3 +1,4 @@
+const assetCompiler = require('./assetPromptCompiler');
 // 角色库：与 Go character_library_service 对齐
 const path = require('path');
 const crypto = require('crypto');
@@ -500,56 +501,11 @@ function buildFourViewImagePrompt(fourViewDescription, styleEn, styleZh) {
  * 供前端「生成提示词」按钮调用，或提取角色后后台异步调用。
  * @returns {{ ok: boolean, polished_prompt?: string, error?: string }}
  */
-async function generateCharacterPromptOnly(db, log, cfg, characterId, modelName, style) {
-  const charRow = db.prepare(
-    'SELECT id, drama_id, name, appearance, description FROM characters WHERE id = ? AND deleted_at IS NULL'
-  ).get(Number(characterId));
-  if (!charRow) return { ok: false, error: 'character not found' };
-
-  const dramaFull = db.prepare('SELECT id, style, metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(charRow.drama_id);
-  let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull || {});
-  mergedCfg = applyStyleOverrideToCfg(mergedCfg, style);
-
-  let appearanceText = '';
-  if (charRow.appearance && String(charRow.appearance).trim()) {
-    appearanceText = String(charRow.appearance).trim();
-  } else if (charRow.description && String(charRow.description).trim()) {
-    appearanceText = String(charRow.description).trim();
-  } else {
-    appearanceText = charRow.name || '';
-  }
-
-  const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, charRow.drama_id, 'character_image_prompt', promptI18n.getRolePolishPrompt(mergedCfg));
-  const userPrompt = `角色名称：${charRow.name}\n\n角色描述：\n${appearanceText}`;
-
-  log.info('[四视图提示词] 开始生成', { character_id: characterId, name: charRow.name });
-
-  let fourViewDescription;
-  try {
-    fourViewDescription = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
-      scene_key: 'role_image_polish',
-      model: modelName || undefined,
-      max_tokens: 4000,
-    });
-  } catch (err) {
-    log.error('[四视图提示词] 文本AI失败，降级为外貌描述', { error: err.message });
-    fourViewDescription = appearanceText;
-  }
-
-  const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-  const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-  const polishedPrompt = buildFourViewImagePrompt(fourViewDescription, styleEn, styleZh);
-
-  // 保存到 characters.polished_prompt
-  db.prepare('UPDATE characters SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
-    polishedPrompt, new Date().toISOString(), Number(characterId)
-  );
-
-  log.info('[四视图提示词] 生成并保存完成', { character_id: characterId, length: polishedPrompt.length });
-  return { ok: true, polished_prompt: polishedPrompt };
+async function generateCharacterPromptOnly(db, log, cfg, id, modelName, style, options = {}) {
+  return assetCompiler.compile(db, log, cfg, 'character', id, { ...options, model: modelName, style, mode: 'quad' });
 }
 
-async function generateCharacterFourViewImage(db, log, cfg, characterId, modelName, style) {
+async function generateCharacterFourViewImage(db, log, cfg, characterId, modelName, style, options = {}) {
   const charRow = db.prepare(
     'SELECT id, drama_id, name, appearance, description, polished_prompt, negative_prompt FROM characters WHERE id = ? AND deleted_at IS NULL'
   ).get(Number(characterId));
@@ -559,52 +515,13 @@ async function generateCharacterFourViewImage(db, log, cfg, characterId, modelNa
 
   let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull);
   mergedCfg = applyStyleOverrideToCfg(mergedCfg, style);
-  let imagePrompt;
-
-  if (charRow.polished_prompt && String(charRow.polished_prompt).trim()) {
-    // 直接使用已保存的提示词（用户可能已编辑过）
-    imagePrompt = String(charRow.polished_prompt).trim();
-    log.info('[四视图] 使用已保存的 polished_prompt，跳过文字AI', { character_id: characterId });
-  } else {
-    // 没有预生成提示词，临时生成（与 generateCharacterPromptOnly 同逻辑）
-    let appearanceText = '';
-    if (charRow.appearance && String(charRow.appearance).trim()) {
-      appearanceText = String(charRow.appearance).trim();
-    } else if (charRow.description && String(charRow.description).trim()) {
-      appearanceText = String(charRow.description).trim();
-    } else {
-      appearanceText = charRow.name || '';
-    }
-
-    const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, charRow.drama_id, 'character_image_prompt', promptI18n.getRolePolishPrompt(mergedCfg));
-    const userPrompt = `角色名称：${charRow.name}\n\n角色描述：\n${appearanceText}`;
-
-    log.info('[四视图] Step1 开始生成四视图提示词', { character_id: characterId, name: charRow.name });
-
-    let fourViewDescription;
-    try {
-      fourViewDescription = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
-        scene_key: 'role_image_polish',
-        model: modelName || undefined,
-        max_tokens: 4000,
-      });
-    } catch (err) {
-      log.error('[四视图] Step1 文本AI失败，降级为直接使用外貌描述', { error: err.message });
-      fourViewDescription = appearanceText;
-    }
-
-    const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-    const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-    imagePrompt = buildFourViewImagePrompt(fourViewDescription, styleEn, styleZh);
-
-    // 顺带保存，供下次复用
-    try {
-      db.prepare('UPDATE characters SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
-        imagePrompt, new Date().toISOString(), Number(characterId)
-      );
-    } catch (_) {}
-
-    log.info('[四视图] Step1 完成，开始Step2生图', { character_id: characterId });
+  const reuse = assetCompiler.checkReuse(db, cfg, 'character', charRow.id, 'quad', style, options.prompt_policy);
+  if (!reuse.ok) return reuse;
+  let imagePrompt = String(charRow.polished_prompt || '').trim();
+  if (!imagePrompt || options.prompt_policy === 'recompile') {
+    const compiled = await generateCharacterPromptOnly(db, log, cfg, charRow.id, undefined, style);
+    if (!compiled.ok) return compiled;
+    imagePrompt = compiled.polished_prompt;
   }
 
   const userNeg = imageClient.resolveAssetUserNegativeForApi(modelName, charRow.negative_prompt);

@@ -261,12 +261,20 @@ function generateStoryboard(db, log) {
     try {
       // 显式处理 model 为空的情况，转为 undefined 以便 service 层触发默认逻辑
       const model = (body.model && String(body.model).trim()) ? body.model : undefined;
-      log.info('Generate storyboard request', { episode_id: req.params.episode_id, storyboard_count: body.storyboard_count, video_duration: body.video_duration });
+      log.info('Generate storyboard request', { episode_id: req.params.episode_id, storyboard_count: body.storyboard_count,
+        storyboard_count_source: body.storyboard_count_source, video_duration: body.video_duration });
       const resData = await dramaService.generateStoryboard(db, log, req.params.episode_id, {
         model: model,
         style: body.style,
         storyboard_count: body.storyboard_count,
+        storyboard_count_source: body.storyboard_count_source,
         video_duration: body.video_duration,
+        video_duration_source: body.video_duration_source,
+        video_clip_duration: body.video_clip_duration,
+        video_clip_duration_mode: body.video_clip_duration_mode,
+        sequence_mode: body.sequence_mode,
+        storyboard_use_first_last_frame: body.storyboard_use_first_last_frame,
+        language: body.language,
         aspect_ratio: body.aspect_ratio,
         include_narration: body.include_narration,
         universal_omni_storyboard: body.universal_omni_storyboard,

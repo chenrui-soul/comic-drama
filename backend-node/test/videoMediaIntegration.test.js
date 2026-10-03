@@ -1,0 +1,60 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { getFfmpegPath, hasLocalFfmpeg } = require('../src/utils/ffmpegPath');
+const { probeVideo } = require('../src/utils/probeVideo');
+const { runFfmpegConcat } = require('../src/services/videoMergeService');
+const log = { info() {}, warn() {}, error() {} };
+
+test('mixed 15/20/25/26/30 second videos merge with measured timing and audio', { skip: !hasLocalFfmpeg() }, t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drama-media-test-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const durations = [15, 20, 25, 26, 30];
+  const inputs = durations.map((seconds, i) => {
+    const file = path.join(dir, `input-${i}.mp4`);
+    const args = ['-y','-f','lavfi','-i',`color=c=${['red','green','blue','yellow','white'][i]}:s=${i % 2 ? '96x128' : '160x90'}:r=${i % 2 ? 24 : 30}`];
+    if (i % 2 === 0) args.push('-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-c:a','aac');
+    args.push('-t',String(seconds),'-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',file);
+    const r = spawnSync(getFfmpegPath(), args, { windowsHide: true, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const media = probeVideo(file);
+    assert.ok(Math.abs(media.duration_ms - seconds * 1000) < 150);
+    assert.equal(media.has_audio, i % 2 === 0);
+    return file;
+  });
+  const output = path.join(dir, 'merged.mp4');
+  assert.equal(runFfmpegConcat(inputs, output, log), true);
+  const media = probeVideo(output);
+  assert.ok(Math.abs(media.duration_ms - 116000) < 300, JSON.stringify(media));
+  assert.equal(media.has_audio, true);
+  assert.equal(media.width, 160);
+  assert.equal(media.height, 90);
+  const html = path.join(dir, 'fake.mp4');fs.writeFileSync(html, '<html>not video</html>');
+  assert.throws(() => probeVideo(html), /校验|视频流/);
+});
+test('remote success with bad download retries download only and exposes measured duration', {skip:!hasLocalFfmpeg()},async t=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'drama-download-test-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const source=path.join(dir,'source.mp4');
+  const encoded=spawnSync(getFfmpegPath(),['-y','-f','lavfi','-i','color=c=blue:s=160x90:r=30','-t','2','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p',source],{windowsHide:true,encoding:'utf8'});
+  assert.equal(encoded.status,0,encoded.stderr);
+  const Database=require('better-sqlite3'),db=new Database(':memory:');require('../src/db/migrate').runMigrationsAndEnsure(db);t.after(()=>db.close());
+  db.prepare("INSERT INTO dramas(id,title,created_at,updated_at) VALUES(1,'测试','now','now')").run();
+  db.prepare("INSERT INTO ai_service_configs(id,service_type,provider,api_protocol,name,base_url,model,default_model,is_active,is_default,created_at,updated_at) VALUES(1,'video','doubao_manager','doubao_manager','测试','http://localhost','[\"Seedance 2.5\"]','Seedance 2.5',1,1,'now','now')").run();
+  let bad=true,submits=0,downloads=0;
+  const server=require('node:http').createServer((_req,res)=>{downloads++;res.setHeader('Content-Type',bad?'text/html':'video/mp4');res.end(bad?'<html>error</html>':fs.readFileSync(source));});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));
+  t.mock.method(require('../src/config'),'loadConfig',()=>({storage:{local_path:dir}}));
+  t.mock.method(require('../src/services/videoClient'),'callVideoApi',async()=>{submits++;return {video_url:`http://127.0.0.1:${server.address().port}/video.mp4`};});
+  const submissions=require('../src/services/videoSubmissionService'),service=require('../src/services/videoService');
+  const job=submissions.enqueue(db,log,{drama_id:1,prompt:'测试',duration:4});
+  await service.processVideoGeneration(db,log,job.id);
+  let item=service.getById(db,job.id);assert.equal(item.status,'failed');assert.equal(item.can_retry_download,true);assert.equal(item.submission_state,'download_failed');
+  bad=false;assert.equal(service.resumeFailedVideoPoll(db,log,job.id).ok,true);
+  for(let i=0;i<200;i++){item=service.getById(db,job.id);if(item.status==='completed')break;await new Promise(r=>setTimeout(r,10));}
+  assert.equal(item.status,'completed',JSON.stringify(item));assert.equal(submits,1);assert.equal(downloads,2);
+  assert.ok(Math.abs(item.actual_duration_ms-2000)<100);assert.match(item.duration_warning,/偏差超过/);assert.equal(item.error_msg,null);
+});

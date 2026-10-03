@@ -1,3 +1,4 @@
+const assetCompiler = require('./assetPromptCompiler');
 // 场景：与 Go scene_handler + storyboard_composition 对齐
 const imageClient = require('./imageClient');
 const aiClient = require('./aiClient');
@@ -199,112 +200,16 @@ function buildSceneSingleImagePrompt(description, styleEn, styleZh) {
  *   Step 2: 拼接布局指令 + fourViewDescription + 硬性要求 → polished_prompt（完整英文图片提示词）
  * 供「提取场景后异步预生成」和「重新生成提示词」按钮调用。
  */
-async function generateScenePromptOnly(db, log, cfg, sceneId, modelName, style) {
-  const sceneRow = db.prepare(
-    'SELECT id, drama_id, location, time, prompt FROM scenes WHERE id = ? AND deleted_at IS NULL'
-  ).get(Number(sceneId));
-  if (!sceneRow) return { ok: false, error: 'scene not found' };
-
-  const dramaFull = db.prepare('SELECT id, style, metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(sceneRow.drama_id);
-  let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull || {});
-  mergedCfg = applySceneStyleOverride(mergedCfg, style);
-
-  const location = (sceneRow.location || '').trim();
-  const time = (sceneRow.time || '').trim();
-  const rawPrompt = (sceneRow.prompt || '').trim();
-  const fourViewCfg = mergedCfg;
-
-  // 构建文字AI输入（location + time + 原始描述）
-  const sceneDesc = [
-    location ? `场景地点：${location}` : '',
-    time ? `时间/时段：${time}` : '',
-    rawPrompt ? `场景描述：${rawPrompt}` : '',
-  ].filter(Boolean).join('\n') || location || '未知场景';
-
-  const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, sceneRow.drama_id, 'scene_image_prompt', promptI18n.getScenePolishPrompt(fourViewCfg));
-  const userPrompt = `请根据以下场景信息，生成四格场景参考图的提示词：\n\n${sceneDesc}`;
-
-  log.info('[场景提示词] Step1 开始生成四视图描述', { scene_id: sceneId, location, time });
-
-  let fourViewDescription;
-  try {
-    fourViewDescription = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
-      model: modelName || undefined,
-      max_tokens: 4000,
-    });
-  } catch (err) {
-    log.error('[场景提示词] 文字AI失败', { error: err.message });
-    return { ok: false, error: err.message };
-  }
-
-  if (!fourViewDescription || !fourViewDescription.trim()) {
-    return { ok: false, error: 'AI返回内容为空' };
-  }
-
-  const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-  const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-  const polishedPrompt = buildSceneFourViewImagePrompt(fourViewDescription.trim(), styleEn, styleZh);
-
-  db.prepare('UPDATE scenes SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
-    polishedPrompt, new Date().toISOString(), Number(sceneId)
-  );
-  log.info('[场景提示词] 生成并保存完成', { scene_id: sceneId, length: polishedPrompt.length });
-  return { ok: true, polished_prompt: polishedPrompt };
+async function generateScenePromptOnly(db, log, cfg, id, modelName, style, options = {}) {
+  return assetCompiler.compile(db, log, cfg, 'scene', id, { ...options, model: modelName, style, mode: 'quad' });
 }
 
 /**
  * 仅生成（并保存）场景单图完整图片提示词到 scenes.polished_prompt_single，不触发图片生成。
  * 与 generateScenePromptOnly 对应（四视图版本）。
  */
-async function generateSceneSinglePromptOnly(db, log, cfg, sceneId, modelName, style) {
-  const sceneRow = db.prepare(
-    'SELECT id, drama_id, location, time, prompt FROM scenes WHERE id = ? AND deleted_at IS NULL'
-  ).get(Number(sceneId));
-  if (!sceneRow) return { ok: false, error: 'scene not found' };
-
-  const dramaFull = db.prepare('SELECT id, style, metadata FROM dramas WHERE id = ? AND deleted_at IS NULL').get(sceneRow.drama_id);
-  let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull || {});
-  mergedCfg = applySceneStyleOverride(mergedCfg, style);
-
-  const location = (sceneRow.location || '').trim();
-  const time = (sceneRow.time || '').trim();
-  const rawPrompt = (sceneRow.prompt || '').trim();
-
-  const sceneDesc = [
-    location ? `场景地点：${location}` : '',
-    time ? `时间/时段：${time}` : '',
-    rawPrompt ? `场景描述：${rawPrompt}` : '',
-  ].filter(Boolean).join('\n') || location || '未知场景';
-
-  const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, sceneRow.drama_id, 'scene_image_prompt', promptI18n.getScenePolishPromptSingle(mergedCfg));
-  const userPrompt = `请根据以下场景信息，生成单图场景参考图的提示词：\n\n${sceneDesc}`;
-
-  log.info('[场景单图提示词] Step1 开始生成单图描述', { scene_id: sceneId, location, time });
-
-  let singleViewDescription;
-  try {
-    singleViewDescription = await aiClient.generateText(db, log, 'text', userPrompt, systemPrompt, {
-      model: modelName || undefined,
-      max_tokens: 4000,
-    });
-  } catch (err) {
-    log.error('[场景单图提示词] 文字AI失败', { error: err.message });
-    return { ok: false, error: err.message };
-  }
-
-  if (!singleViewDescription || !singleViewDescription.trim()) {
-    return { ok: false, error: 'AI返回内容为空' };
-  }
-
-  const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-  const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-  const polishedPrompt = buildSceneSingleImagePrompt(singleViewDescription.trim(), styleEn, styleZh);
-
-  db.prepare('UPDATE scenes SET polished_prompt_single = ?, updated_at = ? WHERE id = ?').run(
-    polishedPrompt, new Date().toISOString(), Number(sceneId)
-  );
-  log.info('[场景单图提示词] 生成并保存完成', { scene_id: sceneId, length: polishedPrompt.length });
-  return { ok: true, polished_prompt_single: polishedPrompt };
+async function generateSceneSinglePromptOnly(db, log, cfg, id, modelName, style, options = {}) {
+  return assetCompiler.compile(db, log, cfg, 'scene', id, { ...options, model: modelName, style, mode: 'single' });
 }
 
 /**
@@ -313,7 +218,7 @@ async function generateSceneSinglePromptOnly(db, log, cfg, sceneId, modelName, s
  * Step 2: 图片AI根据描述生成 16:9 四格场景参考图
  * 如果已有 polished_prompt（预生成的完整提示词），直接使用，跳过 Step 1
  */
-async function generateSceneFourViewImage(db, log, cfg, sceneId, modelName, style) {
+async function generateSceneFourViewImage(db, log, cfg, sceneId, modelName, style, options = {}) {
   const sceneRow = db.prepare(
     'SELECT id, drama_id, location, time, prompt, polished_prompt FROM scenes WHERE id = ? AND deleted_at IS NULL'
   ).get(Number(sceneId));
@@ -323,50 +228,13 @@ async function generateSceneFourViewImage(db, log, cfg, sceneId, modelName, styl
 
   let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull);
   mergedCfg = applySceneStyleOverride(mergedCfg, style);
-  let imagePrompt;
-
-  if (sceneRow.polished_prompt && String(sceneRow.polished_prompt).trim()) {
-    imagePrompt = String(sceneRow.polished_prompt).trim();
-    log.info('[场景四视图] 使用已保存的 polished_prompt，跳过文字AI', { scene_id: sceneId });
-  } else {
-    const location = (sceneRow.location || '').toString().trim();
-    const time = (sceneRow.time || '').toString().trim();
-    const rawPrompt = (sceneRow.prompt || '').toString().trim();
-    const sceneDesc = [
-      location ? `场景地点：${location}` : '',
-      time ? `时间/时段：${time}` : '',
-      rawPrompt ? `场景描述：${rawPrompt}` : '',
-    ].filter(Boolean).join('\n');
-    const inputText = sceneDesc || (location || '未知场景');
-
-    const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, sceneRow.drama_id, 'scene_image_prompt', promptI18n.getScenePolishPrompt(mergedCfg));
-    const userMsg = `请根据以下场景信息，生成四格场景参考图的提示词：\n\n${inputText}`;
-
-    log.info('[场景四视图] Step1 开始生成提示词', { scene_id: sceneId, location, time });
-
-    let fourViewDescription;
-    try {
-      fourViewDescription = await aiClient.generateText(db, log, 'text', userMsg, systemPrompt, {
-        model: modelName || undefined,
-        max_tokens: 4000,
-      });
-    } catch (err) {
-      log.error('[场景四视图] Step1 文本AI失败，降级为直接使用场景描述', { error: err.message });
-      fourViewDescription = inputText;
-    }
-
-    const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-    const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-    imagePrompt = buildSceneFourViewImagePrompt(fourViewDescription, styleEn, styleZh);
-
-    // 顺带保存，供下次复用
-    try {
-      db.prepare('UPDATE scenes SET polished_prompt = ?, updated_at = ? WHERE id = ?').run(
-        imagePrompt, new Date().toISOString(), Number(sceneId)
-      );
-    } catch (_) {}
-
-    log.info('[场景四视图] Step1 完成，开始Step2生图', { scene_id: sceneId });
+  const reuse = assetCompiler.checkReuse(db, cfg, 'scene', sceneRow.id, 'quad', style, options.prompt_policy);
+  if (!reuse.ok) return reuse;
+  let imagePrompt = String(sceneRow.polished_prompt || '').trim();
+  if (!imagePrompt || options.prompt_policy === 'recompile') {
+    const compiled = await generateScenePromptOnly(db, log, cfg, sceneRow.id, undefined, style);
+    if (!compiled.ok) return compiled;
+    imagePrompt = compiled.polished_prompt;
   }
 
   const imageGen = imageClient.createAndGenerateImage(db, log, {
@@ -389,7 +257,7 @@ async function generateSceneFourViewImage(db, log, cfg, sceneId, modelName, styl
  * Step 1: 文本AI将 location/time/prompt 转换为单图场景描述
  * Step 2: 图片AI根据描述生成单张场景参考图
  */
-async function generateSceneSingleImage(db, log, cfg, sceneId, modelName, style) {
+async function generateSceneSingleImage(db, log, cfg, sceneId, modelName, style, options = {}) {
   const sceneRow = db.prepare(
     'SELECT id, drama_id, location, time, prompt, polished_prompt, polished_prompt_single FROM scenes WHERE id = ? AND deleted_at IS NULL'
   ).get(Number(sceneId));
@@ -399,51 +267,13 @@ async function generateSceneSingleImage(db, log, cfg, sceneId, modelName, style)
 
   let mergedCfg = mergeCfgStyleWithDrama(cfg, dramaFull);
   mergedCfg = applySceneStyleOverride(mergedCfg, style);
-  let imagePrompt;
-
-  // 注意：单图模式只检查 polished_prompt_single，即使 polished_prompt（四宫格）有值也不复用
-  // 这样可以兼容老数据（老数据 polished_prompt 是四宫格内容，不能用于单图）
-  if (sceneRow.polished_prompt_single && String(sceneRow.polished_prompt_single).trim()) {
-    imagePrompt = String(sceneRow.polished_prompt_single).trim();
-    log.info('[场景单图] 使用已保存的 polished_prompt_single，跳过文字AI', { scene_id: sceneId });
-  } else {
-    const location = (sceneRow.location || '').toString().trim();
-    const time = (sceneRow.time || '').toString().trim();
-    const rawPrompt = (sceneRow.prompt || '').toString().trim();
-    const sceneDesc = [
-      location ? `场景地点：${location}` : '',
-      time ? `时间/时段：${time}` : '',
-      rawPrompt ? `场景描述：${rawPrompt}` : '',
-    ].filter(Boolean).join('\n');
-    const inputText = sceneDesc || (location || '未知场景');
-
-    const systemPrompt = creativeSkillPacks.composeSystemPrompt(db, sceneRow.drama_id, 'scene_image_prompt', promptI18n.getScenePolishPromptSingle(mergedCfg));
-    const userMsg = `请根据以下场景信息，生成单图场景参考图的提示词：\n\n${inputText}`;
-
-    log.info('[场景单图] Step1 开始生成提示词', { scene_id: sceneId, location, time });
-
-    let singleViewDescription;
-    try {
-      singleViewDescription = await aiClient.generateText(db, log, 'text', userMsg, systemPrompt, {
-        model: modelName || undefined,
-        max_tokens: 4000,
-      });
-    } catch (err) {
-      log.error('[场景单图] Step1 文本AI失败，降级为直接使用场景描述', { error: err.message });
-      singleViewDescription = inputText;
-    }
-
-    const styleEn = (mergedCfg.style.default_style_en || mergedCfg.style.default_style || '').trim();
-    const styleZh = (mergedCfg.style.default_style_zh || '').trim();
-    imagePrompt = buildSceneSingleImagePrompt(singleViewDescription, styleEn, styleZh);
-
-    try {
-      db.prepare('UPDATE scenes SET polished_prompt_single = ?, updated_at = ? WHERE id = ?').run(
-        imagePrompt, new Date().toISOString(), Number(sceneId)
-      );
-    } catch (_) {}
-
-    log.info('[场景单图] Step1 完成，开始Step2生图', { scene_id: sceneId });
+  const reuse = assetCompiler.checkReuse(db, cfg, 'scene', sceneRow.id, 'single', style, options.prompt_policy);
+  if (!reuse.ok) return reuse;
+  let imagePrompt = String(sceneRow.polished_prompt_single || '').trim();
+  if (!imagePrompt || options.prompt_policy === 'recompile') {
+    const compiled = await generateSceneSinglePromptOnly(db, log, cfg, sceneRow.id, undefined, style);
+    if (!compiled.ok) return compiled;
+    imagePrompt = compiled.polished_prompt_single;
   }
 
   const imageGen = imageClient.createAndGenerateImage(db, log, {

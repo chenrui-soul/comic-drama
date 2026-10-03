@@ -91,6 +91,42 @@ function setupRouter(cfg, db, log, doubaoBridge) {
   r.delete('/organization/members/:userId', organization.requireAdmin, organization.removeMember);
   r.delete('/organization/invitations/:id', organization.requireAdmin, organization.revokeInvitation);
 
+  // ---------- V2 asset prompt / view bundle / narrative planning ----------
+  r.get('/asset-views/:type/:id', (req, res) => {
+    try { response.success(res, require('../services/assetViewBundles').list(db, req.params.type, req.params.id)); }
+    catch (err) { response.error(res, 422, 'ASSET_VIEW_ERROR', err.message); }
+  });
+  r.post('/asset-views/:type/:id', async (req, res) => {
+    try { response.success(res, await require('../services/assetViewBundles').create(db, log, cfg, req.params.type, req.params.id, req.body || {})); }
+    catch (err) { response.error(res, err.status || 422, 'ASSET_VIEW_ERROR', err.message); }
+  });
+  r.get('/asset-view-bundles/:id', (req, res) => {
+    const item = require('../services/assetViewBundles').get(db, req.params.id);
+    if (!item) return response.notFound(res, '视图包不存在');
+    response.success(res, item);
+  });
+  r.post('/asset-view-bundles/:id/parts/:key', (req, res) => {
+    try { response.success(res, require('../services/assetViewBundles').generatePart(db, log, req.params.id, req.params.key, req.body || {})); }
+    catch (err) { response.error(res, err.status || 422, 'ASSET_VIEW_ERROR', err.message); }
+  });
+  r.post('/asset-view-bundles/:id/parts/:key/use-reference', (req, res) => {
+    try { response.success(res, require('../services/assetViewBundles').useReference(db, log, req.params.id, req.params.key)); }
+    catch (err) { response.error(res, 422, 'ASSET_VIEW_ERROR', err.message); }
+  });
+  r.get('/episodes/:id/narrative-plan', (req, res) => {
+    require('../services/narrativeUnitPlanner').init(db);
+    const plan = db.prepare('SELECT * FROM narrative_unit_plans WHERE episode_id=? ORDER BY rowid DESC LIMIT 1').get(Number(req.params.id));
+    response.success(res, plan || null);
+  });
+  r.get('/asset-prompts/:type/:id', (req, res) => {
+    try { response.success(res, require('../services/assetPromptCompiler').status(db, cfg, req.params.type, req.params.id, req.query.mode)); }
+    catch (err) { response.badRequest(res, err.message); }
+  });
+  r.get('/asset-prompts/:type/:id/history', (req, res) => {
+    try { response.success(res, require('../services/assetPromptCompiler').history(db, req.params.type, req.params.id, req.query.mode)); }
+    catch (err) { response.badRequest(res, err.message); }
+  });
+
   const drama = dramaRoutes(db, cfg, log);
   const task = taskRoutes(db, log);
   const settings = settingsRoutes(db, cfg, log);

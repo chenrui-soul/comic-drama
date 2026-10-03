@@ -1,14 +1,15 @@
 import request from '@/utils/request'
 
 export const characterAPI = {
+  promptStatus(id, mode) { return request.get(`/asset-prompts/character/${id}`, { params: { mode } }) },
   get(characterId) {
     return request.get(`/characters/${characterId}`)
   },
-  generateImage(characterId, model, style) {
-    return request.post(`/characters/${characterId}/generate-image`, { model, style })
+  generateImage(characterId, model, style, options = {}) {
+    return request.post(`/characters/${characterId}/generate-image`, { model, style, ...options })
   },
-  generatePrompt(characterId, model, style) {
-    return request.post(`/characters/${characterId}/generate-prompt`, { model, style })
+  generatePrompt(characterId, model, style, options = {}) {
+    return request.post(`/characters/${characterId}/generate-prompt`, { model, style, ...options })
   },
   batchGenerateImages(characterIds, model, style) {
     return request.post('/characters/batch-generate-images', {

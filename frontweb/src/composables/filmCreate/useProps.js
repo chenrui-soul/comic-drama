@@ -1,5 +1,6 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { assetPromptChoice } from '@/utils/assetPromptChoice'
 import { propAPI } from '@/api/props'
 import { propLibraryAPI } from '@/api/propLibrary'
 import { uploadAPI } from '@/api/upload'
@@ -143,6 +144,10 @@ export function useProps(deps) {
       ref_image: prop.ref_image || '',
     }
     showEditProp.value = true
+    if (editPropForm.value?.id) {
+      const editing = editPropForm.value
+      propAPI.promptStatus(editing.id).then(info => { if (editPropForm.value === editing) editing.prompt_status = info }).catch(() => {})
+    }
     if (!prop.prompt && prop.id && prop.description) {
       editPropPromptGenerating.value = true
       let elapsed = 0
@@ -172,7 +177,11 @@ export function useProps(deps) {
     if (!form?.id) return
     editPropPromptGenerating.value = true
     try {
-      const res = await propAPI.generatePrompt(form.id)
+      const submitted = JSON.stringify(Object.fromEntries(["name","type","description"].map(key => [key, form[key] || ''])))
+      const options = { input: Object.fromEntries(["name","type","description"].map(key => [key, form[key] || ''])), input_revision: form.prompt_status?.input_revision }
+      const res = await propAPI.generatePrompt(form.id, undefined, undefined, options)
+      if (form !== editPropForm.value || JSON.stringify(Object.fromEntries(["name","type","description"].map(key => [key, form[key] || '']))) !== submitted) { ElMessage.warning('编辑内容已变化，请重新编译；本次结果未回填编辑框'); return }
+      form.prompt_status = res.prompt_status
       if (res?.prompt) {
         form.prompt = res.prompt
         ElMessage.success('提示词已生成')
@@ -301,7 +310,8 @@ export function useProps(deps) {
     generatingPropIds.add(prop.id)
     genStore.markRunning(meta)
     try {
-      const res = await propAPI.generateImage(prop.id, undefined, getSelectedStyle(), !!useQuadGrid)
+      const options = await assetPromptChoice(propAPI, prop.id)
+      const res = await propAPI.generateImage(prop.id, undefined, getSelectedStyle(), options)
       const taskId = res?.task_id
       if (taskId) {
         const pollRes = await pollTask(taskId, () => loadDrama(), meta)

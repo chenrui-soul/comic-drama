@@ -44,9 +44,10 @@ function build(db, sbId, body = {}, opts = {}) {
   if (!Number.isFinite(duration) || duration < 1 || duration > 120) rules.fail('视频时长应在 1–120 秒之间');
   const neighbor = direction => db.prepare(`SELECT title, action, result, dialogue, narration, layout_description FROM storyboards WHERE episode_id = ? AND storyboard_number ${direction === 'prev' ? '<' : '>'} ? AND deleted_at IS NULL ORDER BY storyboard_number ${direction === 'prev' ? 'DESC' : 'ASC'} LIMIT 1`).get(sb.episode_id, sb.storyboard_number) || null;
   const context = {
+    validated_narrative_unit: require('./narrativeUnitPlanner').forStoryboard(db, sbId),
     task: opts.polish ? '按当前规则优化草稿，保留正确内容' : '按当前规则编译本段视频提示词',
     duration_seconds: duration, aspect_ratio: metadata.aspect_ratio || '16:9',
-    visual_style: metadata.style_prompt_zh || metadata.style_prompt_en || drama.style || '',
+    visual_style: require('../constants/generationStylePresets').resolveRenderStyle(metadata.style_prompt_zh || metadata.style_prompt_en || drama.style)?.zh || metadata.style_prompt_zh || metadata.style_prompt_en || drama.style || '',
     current_segment: fields,
     current_draft: opts.universalSegmentOverride ?? sb.universal_segment_text ?? '',
     previous_segment: neighbor('prev'), next_segment: neighbor('next'),
@@ -76,6 +77,9 @@ function finish(db, built, raw) {
   const text = String(raw || '').trim().replace(/^```(?:text|markdown)?\s*\n/i, '').replace(/\n```$/, '');
   if (text.length < 20) rules.fail('AI 返回内容过短');
   const issues = [...validatePrompt(text, built.durationSec, built.references, { timelineRequired: true }), ...validateSkillStructure(text, built.pack)];
+  for (const event of built.context?.validated_narrative_unit?.events || []) {
+    if (event.kind === 'dialogue' && (!text.includes(event.dialogue) || !text.includes(event.speaker))) issues.push(`原台词或说话人 ${event.speaker} 未保留`);
+  }
   if (issues.length) rules.fail(`规则编译未通过：${issues.join('；')}。原提示词已保留，请调整后重试。`);
   return text;
 }

@@ -1,5 +1,6 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { assetPromptChoice } from '@/utils/assetPromptChoice'
 import { sceneAPI } from '@/api/scenes'
 import { sceneLibraryAPI } from '@/api/sceneLibrary'
 import { uploadAPI } from '@/api/upload'
@@ -123,6 +124,10 @@ export function useScenes(deps) {
   function openAddScene() {
     editSceneForm.value = { location: '', time: '', prompt: '' }
     showEditScene.value = true
+    if (editSceneForm.value?.id) {
+      const editing = editSceneForm.value
+      sceneAPI.promptStatus(editing.id).then(info => { if (editSceneForm.value === editing) editing.prompt_status = info }).catch(() => {})
+    }
   }
 
   function stopScenePromptPoll() {
@@ -143,6 +148,10 @@ export function useScenes(deps) {
       ref_image: scene.ref_image || '',
     }
     showEditScene.value = true
+    if (editSceneForm.value?.id) {
+      const editing = editSceneForm.value
+      sceneAPI.promptStatus(editing.id).then(info => { if (editSceneForm.value === editing) editing.prompt_status = info }).catch(() => {})
+    }
     if (!scene.polished_prompt && scene.id && (scene.location || scene.time)) {
       editScenePromptGenerating.value = true
       let elapsed = 0
@@ -172,7 +181,11 @@ export function useScenes(deps) {
     if (!form?.id) return
     editScenePromptGenerating.value = true
     try {
-      const res = await sceneAPI.generatePrompt(form.id)
+      const submitted = JSON.stringify(Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || ''])))
+      const options = { input: Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || ''])), input_revision: form.prompt_status?.input_revision }
+      const res = await sceneAPI.generatePrompt(form.id, undefined, undefined, 'quad', options)
+      if (form !== editSceneForm.value || JSON.stringify(Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || '']))) !== submitted) { ElMessage.warning('编辑内容已变化，请重新编译；本次结果未回填编辑框'); return }
+      form.prompt_status = res.prompt_status
       if (res?.polished_prompt) {
         form.polished_prompt = res.polished_prompt
         ElMessage.success('提示词已生成')
@@ -190,7 +203,11 @@ export function useScenes(deps) {
     if (!form?.id) return
     editScenePromptGenerating.value = true
     try {
-      const res = await sceneAPI.generatePrompt(form.id, undefined, undefined, 'single')
+      const submitted = JSON.stringify(Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || ''])))
+      const options = { input: Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || ''])), input_revision: form.prompt_status?.input_revision }
+      const res = await sceneAPI.generatePrompt(form.id, undefined, undefined, 'single', options)
+      if (form !== editSceneForm.value || JSON.stringify(Object.fromEntries(["location","time","prompt"].map(key => [key, form[key] || '']))) !== submitted) { ElMessage.warning('编辑内容已变化，请重新编译'); return }
+      form.prompt_status = res.prompt_status
       if (res?.polished_prompt_single) {
         form.polished_prompt_single = res.polished_prompt_single
         ElMessage.success('单图提示词已生成')
@@ -316,7 +333,9 @@ export function useScenes(deps) {
     generatingSceneIds.add(scene.id)
     genStore.markRunning(meta)
     try {
+      const options = await assetPromptChoice(sceneAPI, scene.id, useQuadGrid ? 'quad' : 'single')
       const res = await sceneAPI.generateImage({
+        ...options,
         scene_id: scene.id,
         model: undefined,
         style: getSelectedStyle(),
