@@ -1,0 +1,17 @@
+app:
+  name: LocalMiniDrama API
+  version: 1.0.0
+  debug: false
+  language: zh
+server:
+  host: 0.0.0.0
+  port: 5680
+  insecure_tls: false
+database:
+  type: sqlite
+  path: /app/backend-node/data/drama.db
+storage:
+  type: local
+  local_path: /app/backend-node/data/storage
+video:
+  generation_timeout_minutes: 30

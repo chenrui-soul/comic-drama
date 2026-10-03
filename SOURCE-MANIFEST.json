@@ -1,0 +1,1745 @@
+{
+  "createdAt": "2026-09-30T05:23:49.683Z",
+  "source": "D:\\AI漫剧\\AI工作流\\自研 Ai创作工作流平台\\新版本\\LocalMiniDrama-main",
+  "release": "1.2.8-desktop.20260930.1",
+  "policy": "单一最新主线；排除历史副本、依赖、构建产物、项目数据、日志、私有配置。config.yaml 为干净模板，工具二进制由桌面构建提供。",
+  "skipped": [
+    "backend-node\\.npmrc",
+    "backend-node\\configs\\config.yaml",
+    "backend-node\\tools\\ffmpeg\\ffmpeg.exe",
+    "frontweb\\public\\style-thumbs\\0comic - 副本.jpg",
+    "frontweb\\public\\style-thumbs\\cartoon - 副本.jpg",
+    "frontweb\\video-download-regression.log",
+    "frontweb\\vite-restart-20260928-220520.err.log",
+    "frontweb\\vite-restart-20260928-220520.out.log",
+    "frontweb\\vite-restart-20260928-220738.err.log",
+    "frontweb\\vite-restart-20260928-220738.out.log",
+    "frontweb\\vite-restart.err.log",
+    "frontweb\\vite-restart.out.log",
+    "frontweb\\vite-style-20260929-140427.err.log",
+    "frontweb\\vite-style-20260929-140427.out.log",
+    "desktop\\.npmrc"
+  ],
+  "files": [
+    {
+      "path": "backend-node/.gitignore",
+      "bytes": 36,
+      "sha256": "be6ef81ec3ec9537e3dc1ebe891f80d52f4d8bd7ec4eeac52f1eec0d07a38bb6"
+    },
+    {
+      "path": "backend-node/README.md",
+      "bytes": 18119,
+      "sha256": "45ccfd4ae9d4e15406e0a6da8ab6c8fefb103c4afeb40b3288dcc55aaeb3a94f"
+    },
+    {
+      "path": "backend-node/migrations/01_init.sql",
+      "bytes": 6288,
+      "sha256": "54c35f55a27228dd2a9091dc7600434ed076cacd32134fbbc8f95bc1e407e5be"
+    },
+    {
+      "path": "backend-node/migrations/02_add_default_model.sql",
+      "bytes": 142,
+      "sha256": "8182a932e753f58766993886125fcd111532f0721315f1d2397ac6b268e711a4"
+    },
+    {
+      "path": "backend-node/migrations/03_add_props_episode_id.sql",
+      "bytes": 143,
+      "sha256": "faf23e48ca3d681e6e652a3f840f43c10b938a3d00a362715d209dd34949c0eb"
+    },
+    {
+      "path": "backend-node/migrations/04_async_tasks_columns.sql",
+      "bytes": 239,
+      "sha256": "5a18b0c11034470685f6e65600e343e02f23b997dca92d0884b491381382b813"
+    },
+    {
+      "path": "backend-node/migrations/05_add_image_generations_completed_at.sql",
+      "bytes": 234,
+      "sha256": "e34f92bdad0033dab81dd212d1b2693491777e5772aef22af9d12c1535e5c7c4"
+    },
+    {
+      "path": "backend-node/migrations/06_add_characters_local_path.sql",
+      "bytes": 126,
+      "sha256": "0eca6529d4a2b9b0b427376f47fdf4a8fddb3f4d2ac7040f6fce6e58214a7e79"
+    },
+    {
+      "path": "backend-node/migrations/07_add_scenes_image_columns.sql",
+      "bytes": 177,
+      "sha256": "2f60889c745c12af4756ac5866a8b988357135a322a50daf4cbf91ab2099e1bc"
+    },
+    {
+      "path": "backend-node/migrations/08_add_video_generations_completed_at.sql",
+      "bytes": 220,
+      "sha256": "1c60ea5e3c3f1133e7a602a224f261c83a2f5fcd19f5f35e53018ce9e61093c4"
+    },
+    {
+      "path": "backend-node/migrations/09_scene_prop_libraries.sql",
+      "bytes": 757,
+      "sha256": "4d0c203c2b8a7233f8dbcc1b04f4d43341cac4a381ab1ac63957b89288b6e837"
+    },
+    {
+      "path": "backend-node/migrations/10_prompt_overrides.sql",
+      "bytes": 169,
+      "sha256": "c390dc15307124390ced1da052d4d96e3737f06535f2973f3c6d737143a5f4bb"
+    },
+    {
+      "path": "backend-node/migrations/11_add_api_protocol.sql",
+      "bytes": 337,
+      "sha256": "505d615a6edc0686abb9e936291718238eeaef584f200b1ac32838de7f8fd9fd"
+    },
+    {
+      "path": "backend-node/migrations/12_image_proxy_cache.sql",
+      "bytes": 394,
+      "sha256": "e835bb8249764f29c9edaa9fa93a8647f1850aba221ac5b7039d984aef02e611"
+    },
+    {
+      "path": "backend-node/migrations/13_character_identity_anchors.sql",
+      "bytes": 677,
+      "sha256": "7af9a05a13db9b70a9aec424ab0952beb9044dd0353bc7f2c3edfaf30f09ea36"
+    },
+    {
+      "path": "backend-node/migrations/14_storyboard_segments_and_model_map.sql",
+      "bytes": 857,
+      "sha256": "47a09fb73b75cf55254e85487a4f977fac88dcc690a29bfbbfdd0ac65dbc34c5"
+    },
+    {
+      "path": "backend-node/migrations/15_storyboard_angle_structured.sql",
+      "bytes": 531,
+      "sha256": "99a6f07af87c1a40000fc16173fe2824617a9757be394d805f15611ddd852716"
+    },
+    {
+      "path": "backend-node/migrations/16_character_polished_prompt.sql",
+      "bytes": 244,
+      "sha256": "6e07734f5e05b4bfb1e1f0d3e5b3f2d3fb1eba1b6b986cd738d8fe74370c3b11"
+    },
+    {
+      "path": "backend-node/migrations/17_character_stages.sql",
+      "bytes": 105,
+      "sha256": "4b2f226ae0a366a3fd5b86cf6def0e1bdd25859a292fa88f209ceb9b3c341a92"
+    },
+    {
+      "path": "backend-node/migrations/18_storyboard_narration.sql",
+      "bytes": 138,
+      "sha256": "1974a4f49f97fdf6238016d3239b6ee2b2810b919fce158e990ff0ef05c0d3b5"
+    },
+    {
+      "path": "backend-node/migrations/19_storyboard_universal_mode.sql",
+      "bytes": 225,
+      "sha256": "2861fd38cb898309b562064ca3e73234bd6f8acd2a2644da24fb8da35e51e018"
+    },
+    {
+      "path": "backend-node/migrations/20_character_seedance2_asset.sql",
+      "bytes": 153,
+      "sha256": "f50652045bb8dff54e0eaec786c23ff4a2b95d5adcebc66c5845a8efe92b0de5"
+    },
+    {
+      "path": "backend-node/migrations/21_asset_negative_prompt.sql",
+      "bytes": 271,
+      "sha256": "aaa7df091cb501bf709ceda4057baa2690d47751545e6f92c1693a41214f1e4f"
+    },
+    {
+      "path": "backend-node/migrations/22_library_source_id.sql",
+      "bytes": 2347,
+      "sha256": "db4896567ef3e5ba02e5aca5f744a783221e7d9bc0f31a1c7377a803f36daab9"
+    },
+    {
+      "path": "backend-node/package-lock.json",
+      "bytes": 90790,
+      "sha256": "7032a4ee8f561ddd850e8f2e552f09fb1e3758c15596d5005e47fc21dc254e7e"
+    },
+    {
+      "path": "backend-node/package.json",
+      "bytes": 724,
+      "sha256": "4b325cff2778b02db83935269a0017beec9fb1cf1d8e91e8f92db1a13a906f10"
+    },
+    {
+      "path": "backend-node/resources/creative-skills/inspiration-to-short-drama-2.0-20260913.zip",
+      "bytes": 19553,
+      "sha256": "015b30b3b09f55fc452b7e3f2790ea62fd420f0fdb30969c381ccc76b0d3f19e"
+    },
+    {
+      "path": "backend-node/resources/creative-skills/visual-asset-skill-3.3.0.zip",
+      "bytes": 47861,
+      "sha256": "57fa0922cf30d23914405514fd18190004c6247542fad93dd7136ac71d31623e"
+    },
+    {
+      "path": "backend-node/resources/video-prompt-skills/video-generation-preparation-1.8.1.zip",
+      "bytes": 51798,
+      "sha256": "7f358dc355467d277cfd36266592a11be6645bf4c9e867a9177339cd66984bb1"
+    },
+    {
+      "path": "backend-node/src/app.js",
+      "bytes": 4478,
+      "sha256": "4a5079a0e1d317bb455100ad0cf2cd832c309ea748661634b1a52fdabaa18e58"
+    },
+    {
+      "path": "backend-node/src/config/index.js",
+      "bytes": 704,
+      "sha256": "0c1d1194859b37d7d2b27fdc37726089735825d5366fdda3d0ad5686d27883b2"
+    },
+    {
+      "path": "backend-node/src/config/videoGeneration.js",
+      "bytes": 380,
+      "sha256": "f258ac7d5a3476fc0cf7d1caa4fca5fb50fa21de36f33df7216a61f14afafb0d"
+    },
+    {
+      "path": "backend-node/src/constants/generationStylePresets.js",
+      "bytes": 23338,
+      "sha256": "4606e84652e1a5acf206dd76dfa6c1891ac20ec278e665946f97825a56fbefa1"
+    },
+    {
+      "path": "backend-node/src/db/index.js",
+      "bytes": 623,
+      "sha256": "cfea412034a42c45b83c548d727b832b32dd4ae47bc72758e00d89bef55c59c1"
+    },
+    {
+      "path": "backend-node/src/db/migrate.js",
+      "bytes": 24068,
+      "sha256": "616c75568292be63fa34f4adfced8be649ecf762b1208bd1f74541b57665737d"
+    },
+    {
+      "path": "backend-node/src/logger.js",
+      "bytes": 1296,
+      "sha256": "8d89435cc2e83322cc0b59f68531fb0aaa9fed011b8560a059fcd751918d7115"
+    },
+    {
+      "path": "backend-node/src/response.js",
+      "bytes": 1311,
+      "sha256": "14ff3d98644f5e47041e9c618bcd15e509a2116ea295c97981d11217e2164b80"
+    },
+    {
+      "path": "backend-node/src/routes/aiConfig.js",
+      "bytes": 7590,
+      "sha256": "8199f9b71cdd1e3d2e6b5d6b225802f34bddf285e8b698c169c37a93f984046f"
+    },
+    {
+      "path": "backend-node/src/routes/assets.js",
+      "bytes": 2747,
+      "sha256": "590fcbefa83770989774e5e5ece017c98c259e0ed4b0977ee0d8993db7fa1046"
+    },
+    {
+      "path": "backend-node/src/routes/audio.js",
+      "bytes": 4428,
+      "sha256": "fcf5265d8267645d376ddfc7bf3736913271ca301c17f983d0b7ddeb07043e5c"
+    },
+    {
+      "path": "backend-node/src/routes/characterLibrary.js",
+      "bytes": 2404,
+      "sha256": "a1c68535bb01679193fbd6ed9736bdb52c4fec9278230f5938ac2fe95135e64c"
+    },
+    {
+      "path": "backend-node/src/routes/characters.js",
+      "bytes": 17745,
+      "sha256": "eb02b0ceccd3bc07efb6c7b618a1ae485ec01b0ebcba002914ea4ae4723f5744"
+    },
+    {
+      "path": "backend-node/src/routes/creativeSkillRules.js",
+      "bytes": 2081,
+      "sha256": "01c821fc6ac5af1420e3a3509dda48f68946a01e5d5aa638f88b51865f176671"
+    },
+    {
+      "path": "backend-node/src/routes/drama.js",
+      "bytes": 11028,
+      "sha256": "7da44376c2dfb5748134159eb2b8c2df2eb9481e2b01de4d1408b3cd91eca36c"
+    },
+    {
+      "path": "backend-node/src/routes/images.js",
+      "bytes": 3878,
+      "sha256": "d74451b6d3e3f9bf3027e2187cba6738b4984a7f90ac9e60c316b8fd489526eb"
+    },
+    {
+      "path": "backend-node/src/routes/index.js",
+      "bytes": 18094,
+      "sha256": "3d5f0b83da0fadb23721b1bd3b6fe639843d22527756fc96a724265c82c8931f"
+    },
+    {
+      "path": "backend-node/src/routes/promptOverrides.js",
+      "bytes": 4605,
+      "sha256": "64a133305718db7d805c4fffe4b86d82687ef2c3f19cffe0052e500fd2d6369e"
+    },
+    {
+      "path": "backend-node/src/routes/prop.js",
+      "bytes": 6954,
+      "sha256": "34b396b33da83b0f762f06ae4e36944c02858a41fe410fa62a7365f0f799a35a"
+    },
+    {
+      "path": "backend-node/src/routes/propLibrary.js",
+      "bytes": 2344,
+      "sha256": "a113b54f975e252aa0637353a2aa4e4fa61c5888e417f68a240fa40f2374538c"
+    },
+    {
+      "path": "backend-node/src/routes/sceneLibrary.js",
+      "bytes": 2356,
+      "sha256": "010990917e1318fdb69ec39c7f12de28db4a63a437f5345f8888226eba0f763a"
+    },
+    {
+      "path": "backend-node/src/routes/sceneModelMap.js",
+      "bytes": 4018,
+      "sha256": "f37d72d23f57a36218e5264ae873444292ca71edb67364e5689f7647b86a47e4"
+    },
+    {
+      "path": "backend-node/src/routes/scenes.js",
+      "bytes": 6834,
+      "sha256": "49fc1dec8270e8808c23377590ea51f09dddec3c4a71eaa5df97eb0be2056cd9"
+    },
+    {
+      "path": "backend-node/src/routes/settings.js",
+      "bytes": 2936,
+      "sha256": "37ad78102dd15fece311cfb4e9a4bbc9695727e9f411ccfce614586684842da9"
+    },
+    {
+      "path": "backend-node/src/routes/storyboards.js",
+      "bytes": 52888,
+      "sha256": "bf724f239ba64329c2d77d244a64157cb186f7144ad67dea97cfe48d8d73b25a"
+    },
+    {
+      "path": "backend-node/src/routes/storyboards_tail_link.js",
+      "bytes": 245,
+      "sha256": "6f8aefa77416a5bc4b24ce915062a116352525a9b057997292e9accd26761b16"
+    },
+    {
+      "path": "backend-node/src/routes/stub.js",
+      "bytes": 7823,
+      "sha256": "34e00e710e02f018c82bc7d05358a843e3113a36da22d9b3d4698da7d4293a8c"
+    },
+    {
+      "path": "backend-node/src/routes/task.js",
+      "bytes": 1523,
+      "sha256": "ffacacdc56b5d8e13e4c51b51f01080161c95c21cc73a5626de418d9e930fed9"
+    },
+    {
+      "path": "backend-node/src/routes/upload.js",
+      "bytes": 3134,
+      "sha256": "336a8c4557e10af9222a093027af1be4bec51e09ee98cd3172d3cf400efa6f1b"
+    },
+    {
+      "path": "backend-node/src/routes/videoDownloads.js",
+      "bytes": 2041,
+      "sha256": "37acaac742be52c7ec486f1815dbc412019604cb548242302db699fa8dffd400"
+    },
+    {
+      "path": "backend-node/src/routes/videoMerges.js",
+      "bytes": 1650,
+      "sha256": "710adaba66967d26ea176c04a40ac50ab4debd482d4218f8de74f3e843282cb9"
+    },
+    {
+      "path": "backend-node/src/routes/videoPromptRules.js",
+      "bytes": 2092,
+      "sha256": "6eab760444ec15e41ba823a9ccdd5dda862b73f82126ffdd6919fcb2400102dd"
+    },
+    {
+      "path": "backend-node/src/routes/videos.js",
+      "bytes": 6268,
+      "sha256": "a02f11cadbdafa0c52ffdfaf968cc60cea66b7744f4f9c72d497a7134d8dbc25"
+    },
+    {
+      "path": "backend-node/src/server.js",
+      "bytes": 1358,
+      "sha256": "aeea6182ccfc62dfdb7ca34c20479b93c0d04a48ee1d3d4eb16c8013bc342124"
+    },
+    {
+      "path": "backend-node/src/services/aiClient.js",
+      "bytes": 29990,
+      "sha256": "f787b269fb1efabe2bd3697aeb316bcc1f031d646b39a344cc2b355db712dea5"
+    },
+    {
+      "path": "backend-node/src/services/aiConfigService.js",
+      "bytes": 23067,
+      "sha256": "54792e9274241b98ed830307a9ff015d5017d80ffa1adfb2bdb2c805ad71aebb"
+    },
+    {
+      "path": "backend-node/src/services/angleService.js",
+      "bytes": 19896,
+      "sha256": "89737ed49cbb55dc6ddd6f8d295e1daf9b6f1e266b01d8c5b46c2e55d65fa4a0"
+    },
+    {
+      "path": "backend-node/src/services/assetService.js",
+      "bytes": 3889,
+      "sha256": "ecb3944da27be426c2118b87ef23bb9fce306f9418c94fd10972ddbef969fd40"
+    },
+    {
+      "path": "backend-node/src/services/backgroundExtractionService.js",
+      "bytes": 8622,
+      "sha256": "1d5a17cc9ca4a694933e176e75ba8bbf3c3f22e312763045861ced37b7b66715"
+    },
+    {
+      "path": "backend-node/src/services/characterGenerationService.js",
+      "bytes": 8159,
+      "sha256": "de05702442da78aa60ac8239f3edaecd81d313e47692919a276d3a8cef4499fc"
+    },
+    {
+      "path": "backend-node/src/services/characterLibraryService.js",
+      "bytes": 49602,
+      "sha256": "8047595602354a5e665bb14ce1b41b5ba0ab0aa06bcdaa8c392486b24be3a37a"
+    },
+    {
+      "path": "backend-node/src/services/creativeSkillPacks.js",
+      "bytes": 10235,
+      "sha256": "c0e6633c2c0bd46433887c18384d6440ac1a0b31964af6594fd30a815032e0a5"
+    },
+    {
+      "path": "backend-node/src/services/customVideoPrompt.js",
+      "bytes": 6417,
+      "sha256": "abb1ab9bfc445f83c395d0be0bbfafd1ecd31d1db501f01c40f841615ae91cd2"
+    },
+    {
+      "path": "backend-node/src/services/deepseekConfig.js",
+      "bytes": 3464,
+      "sha256": "5038fd428710c96bc601cb43a77dc11295341fbb8c836d63def00b821fafbda6"
+    },
+    {
+      "path": "backend-node/src/services/dramaExportService.js",
+      "bytes": 18701,
+      "sha256": "2accdd85eeb8c849d4ad5bd0e50d74154d478700cf65987ab24fdeb89fd42029"
+    },
+    {
+      "path": "backend-node/src/services/dramaImportService.js",
+      "bytes": 20538,
+      "sha256": "7d250edf4a85422546b663b74b3ec66ddd73611ec123b9309ee7b28951bfcb35"
+    },
+    {
+      "path": "backend-node/src/services/dramaService.js",
+      "bytes": 34123,
+      "sha256": "b9ebabca0df9e1abc54f17db1b9a3aefa4d216ca93bfc4f8bbdf2054433ed9ba"
+    },
+    {
+      "path": "backend-node/src/services/episodeStoryboardService.js",
+      "bytes": 72630,
+      "sha256": "f68b8daf4fb868d56155f61bc711f54ff69f7018e00a58a6b5dcc0067028cc0b"
+    },
+    {
+      "path": "backend-node/src/services/framePromptService.js",
+      "bytes": 33320,
+      "sha256": "64081584a5cd4f57d626ccec06e4efb75e88747e6f0b5d7140b1401acdf4e499"
+    },
+    {
+      "path": "backend-node/src/services/imageClient.js",
+      "bytes": 81480,
+      "sha256": "6c5fec7fbe120f654f296c6ea42dcd5b4fdcb6068bf9a309fdce6375563746e3"
+    },
+    {
+      "path": "backend-node/src/services/imageService.js",
+      "bytes": 84383,
+      "sha256": "a6e39f13828b82c834cc95720bed2dedf63764ed2138cdf5fc33131e354a3544"
+    },
+    {
+      "path": "backend-node/src/services/jimengMaterialHubService.js",
+      "bytes": 13780,
+      "sha256": "8757c47737446dac40218ee52dc812fb37a793e7da2c07c430bff1315e64d5e3"
+    },
+    {
+      "path": "backend-node/src/services/klingJwt.js",
+      "bytes": 2934,
+      "sha256": "7224ca131ebb8d516db40a90ec0c7b2177ae0b5df8ed32e98e5b707a6dcfa980"
+    },
+    {
+      "path": "backend-node/src/services/libraryDedup.js",
+      "bytes": 4336,
+      "sha256": "5df75a5b1b2554141f1916ccf867c4b407e9147dbcd3eaa6172c37a9a73b04c1"
+    },
+    {
+      "path": "backend-node/src/services/mediaAspectRatioSpec.js",
+      "bytes": 5618,
+      "sha256": "a73c8a692852bddef19927ea4ab2e7fb95d099d9b7abca3fbb008d43055097dd"
+    },
+    {
+      "path": "backend-node/src/services/mergedEpisodePostProcess.js",
+      "bytes": 15194,
+      "sha256": "78b18ea9732b4f116dce02f621d0578114004c5ad6c1801d277ab31fb931e894"
+    },
+    {
+      "path": "backend-node/src/services/modelArkAssetConfigService.js",
+      "bytes": 7695,
+      "sha256": "eb3a84875be5175ff2b80dcd18bf0088d908617ceec7ec034973534cb2c724ff"
+    },
+    {
+      "path": "backend-node/src/services/modelArkAssetProxyService.js",
+      "bytes": 7924,
+      "sha256": "76d3f9d0ccf6ce6b588031b3451e807daef83b805b14124ebe38e61e0265b365"
+    },
+    {
+      "path": "backend-node/src/services/narrationVideoPostProcess.js",
+      "bytes": 10924,
+      "sha256": "9a0a5ea7414cce70f8a7c6964e77f7809fc0c57f2ffa3b2b2b0d0b993f00a3e8"
+    },
+    {
+      "path": "backend-node/src/services/novelImportService.js",
+      "bytes": 3460,
+      "sha256": "28dacf7ccfda1835090b4519cee0f40c8a738ec9baa7080c561a0d9f5d26bf50"
+    },
+    {
+      "path": "backend-node/src/services/promptI18n.js",
+      "bytes": 135739,
+      "sha256": "25113401ffb24f16c08cf688f97af544ef28564a4102fb439a76a137bac3e3b4"
+    },
+    {
+      "path": "backend-node/src/services/promptOverridesService.js",
+      "bytes": 739,
+      "sha256": "9c6ba70e3f427ef35e6e2c9844aa978359e671855b84147ad162680726cd3e9c"
+    },
+    {
+      "path": "backend-node/src/services/propExtractionService.js",
+      "bytes": 5788,
+      "sha256": "9fa81c97a899dcda10201c50155dfa1abc4921b13ee74aea25f0bee52fbee132"
+    },
+    {
+      "path": "backend-node/src/services/propImageGenerationService.js",
+      "bytes": 6879,
+      "sha256": "9e84a3c6336efcb4055dd87a2a56ed428c1289272662a4cc0923763e7ccce3db"
+    },
+    {
+      "path": "backend-node/src/services/propLibraryService.js",
+      "bytes": 7891,
+      "sha256": "34a1d3c5f7fec934268adb2c2764cd99ad1cb85fb9dfd84cd0c98ed4a7adcda6"
+    },
+    {
+      "path": "backend-node/src/services/propService.js",
+      "bytes": 9032,
+      "sha256": "ad090aba095bce2e79e93a32aebcd0cf299b4df367e026e71584c979e6f550b9"
+    },
+    {
+      "path": "backend-node/src/services/sceneLibraryService.js",
+      "bytes": 8165,
+      "sha256": "5184ffe0d24a841ebf08d56fae1c358defd9d808ea1d9a18f93bd94329f12d44"
+    },
+    {
+      "path": "backend-node/src/services/sceneService.js",
+      "bytes": 22816,
+      "sha256": "83322940dc07363a0cb32aacabce015ee09c161d008b3b9ee4a030dd1e85c9ff"
+    },
+    {
+      "path": "backend-node/src/services/settingsService.js",
+      "bytes": 2131,
+      "sha256": "6b53a2be5a0e0c10c87b44be0e90aba3ff7c39ce64f99afe8b26c4dc15eb43e4"
+    },
+    {
+      "path": "backend-node/src/services/storageLayout.js",
+      "bytes": 3031,
+      "sha256": "ba9a3d3a1d75fbab80b254c1cb5c59fa97e3edd026444e6594b5d4180a8a4ac3"
+    },
+    {
+      "path": "backend-node/src/services/storyGenerationService.js",
+      "bytes": 6689,
+      "sha256": "9598615d3400651e895a0c0f6a0933f0ae50eaa95a6ac946cd828f47a68f8e34"
+    },
+    {
+      "path": "backend-node/src/services/storyboardFrameBinding.js",
+      "bytes": 1780,
+      "sha256": "76664cbad48036f31a1655359578a0f15759de37fd019cb545ffd9b8c8e75e4f"
+    },
+    {
+      "path": "backend-node/src/services/storyboardService.js",
+      "bytes": 11485,
+      "sha256": "7b40d5ec78052aa94092217a13008a56aebba846618a3054c0a328444f95bd43"
+    },
+    {
+      "path": "backend-node/src/services/tailFrameLinkService.js",
+      "bytes": 7221,
+      "sha256": "7a8bbc319165b66bf7507863ab66ba6862fbe4ec2e2216e862390f17c8db3069"
+    },
+    {
+      "path": "backend-node/src/services/taskService.js",
+      "bytes": 4402,
+      "sha256": "16b0dfa63d60f413914eede70cbf769f3eb0231423dd41d14a2599befc161427"
+    },
+    {
+      "path": "backend-node/src/services/ttsService.js",
+      "bytes": 6331,
+      "sha256": "ba9ce6a9416e8b8c84992aa723c91d96c9a8d0047b43dc7d6711c4fab059c47e"
+    },
+    {
+      "path": "backend-node/src/services/universalOmniMultiBeatFormat.js",
+      "bytes": 3246,
+      "sha256": "0a75689da94a6ffd0483b080b0597ee743ddacec1b0b4f46f94077f886229ff7"
+    },
+    {
+      "path": "backend-node/src/services/universalPromptPolish.js",
+      "bytes": 6878,
+      "sha256": "4ff2d08f9dbd03f665fb5170b29edca8a0445e32fbcaaad0fc6026ff1f761220"
+    },
+    {
+      "path": "backend-node/src/services/universalSegmentDurationNormalize.js",
+      "bytes": 2910,
+      "sha256": "13f15bba469ac1fe9cf7b7d7baa434eec3ba0f865eb7193d33bf638bb221fae5"
+    },
+    {
+      "path": "backend-node/src/services/universalSegmentPromptBundle.js",
+      "bytes": 22701,
+      "sha256": "c47b15c1dded851c0f661328a5d4924c7e960e3d6fcdb7cf0429cb0a4db9300b"
+    },
+    {
+      "path": "backend-node/src/services/uploadService.js",
+      "bytes": 11012,
+      "sha256": "0d87847a305b275fe77b468efbe6e3877d93668dd77c42c2dc5b29dc476407f5"
+    },
+    {
+      "path": "backend-node/src/services/videoClient.js",
+      "bytes": 182294,
+      "sha256": "d1817e62cd61380fa9aebb4cac7a7cf6ace62a195c455fff69da6a6c2f287a60"
+    },
+    {
+      "path": "backend-node/src/services/videoDownloadService.js",
+      "bytes": 5834,
+      "sha256": "438e5bfd8a731ddf1103821362203bd264b44bcb81dab187404b6b25e94766c2"
+    },
+    {
+      "path": "backend-node/src/services/videoMergeService.js",
+      "bytes": 13234,
+      "sha256": "8bb24f836c1ffd86303a073648827b52e907fd6c879c12a76d6e7f8b22ec0b27"
+    },
+    {
+      "path": "backend-node/src/services/videoPromptRules.js",
+      "bytes": 8486,
+      "sha256": "074abaaf11eae6e90d6df0309a231f99256b55954276f6bf4352fe5992faf645"
+    },
+    {
+      "path": "backend-node/src/services/videoPromptValidation.js",
+      "bytes": 2351,
+      "sha256": "9aa17027fd8030c62077afa431b63258dac220c29c32cf74c76d2f1ccbdc9751"
+    },
+    {
+      "path": "backend-node/src/services/videoService.js",
+      "bytes": 23236,
+      "sha256": "307be89f592c665375be85237e7f9b85b67b552a8a0e002a11297c2c7239af8d"
+    },
+    {
+      "path": "backend-node/src/utils/dramaStyleMerge.js",
+      "bytes": 3640,
+      "sha256": "9e857f4db584ffbe52276dc44ea9dae10b93d7fe550b8c0ff005b6d4c3c4fe74"
+    },
+    {
+      "path": "backend-node/src/utils/ffmpegPath.js",
+      "bytes": 2955,
+      "sha256": "d9107e92865a237ed440a54c45841f52f1afa8c50f4b813a18e2b10455204771"
+    },
+    {
+      "path": "backend-node/src/utils/framePromptSanitize.js",
+      "bytes": 11305,
+      "sha256": "d59b7a0fbdfd7b2d04e3bb75d281cafa76ba732107dbe7fe3a949fbd58125cec"
+    },
+    {
+      "path": "backend-node/src/utils/preferIpv4Dns.js",
+      "bytes": 937,
+      "sha256": "5ceb994e178b7c63421becc1afd17419b11ce2256770551485825b2245f6bb09"
+    },
+    {
+      "path": "backend-node/src/utils/safeJson.js",
+      "bytes": 16790,
+      "sha256": "8a7695c6929af8b37009857679c8f0560655ce0cdab5c31a97731dcc3679a96d"
+    },
+    {
+      "path": "backend-node/src/utils/seedance2AssetGuards.js",
+      "bytes": 4463,
+      "sha256": "27a205b651251d4f600da984ba7938af5955aec8fdba9e60c7fc1d22196de9ed"
+    },
+    {
+      "path": "backend-node/src/utils/videoMedia.js",
+      "bytes": 735,
+      "sha256": "3d77639033ed2ea361ab5bc7f85301d5a4b6a1082e6caa46b248ca26117c23d5"
+    },
+    {
+      "path": "backend-node/test/agnesImageSize.test.js",
+      "bytes": 1329,
+      "sha256": "06d0b916f4beff4b4bb352d5604bca51211de91f20a0dfe928fe78463c5155b7"
+    },
+    {
+      "path": "backend-node/test/agnesVideoBody.test.js",
+      "bytes": 5969,
+      "sha256": "94cacbcf3d4aaf228dfdff32a16dcb345f3272c03a5d5468bd67f3d98d756971"
+    },
+    {
+      "path": "backend-node/test/agnesVideoPoll.test.js",
+      "bytes": 5231,
+      "sha256": "8b95da3347854213acf616ad39e53ca2873354cc311675cb6a46bfa529e72523"
+    },
+    {
+      "path": "backend-node/test/creativeSkillPacks.test.js",
+      "bytes": 2130,
+      "sha256": "7dcec25f7011605a83f4a710ec11af29af471923b85be78409e2d6dc74ed8684"
+    },
+    {
+      "path": "backend-node/test/deepseekConfig.test.js",
+      "bytes": 2069,
+      "sha256": "c09799e45e1022e2b25259e5dd94f22a1db5e80628f2b60d094b531bd26c7af3"
+    },
+    {
+      "path": "backend-node/test/doubaoManagerVideo.test.js",
+      "bytes": 1908,
+      "sha256": "dafec654008ac705169786f53018aa51ed1cc605eed86ff50085cb9e6009db87"
+    },
+    {
+      "path": "backend-node/test/dramaStyleMergeCustom.test.js",
+      "bytes": 1281,
+      "sha256": "81a5a23666a865104e4849150130dbdfea3dc5562dd6421ce4bde1e35f1c939d"
+    },
+    {
+      "path": "backend-node/test/generationStylePresets.test.js",
+      "bytes": 897,
+      "sha256": "e22148ba2ba00b56ed01087284f7becbc36d14a858c481db2037f1464afb3d2b"
+    },
+    {
+      "path": "backend-node/test/imageProxyCache.test.js",
+      "bytes": 1508,
+      "sha256": "daf88afae04b98d1d72c6e14daee8740c422474fb0c339b5b3c2c344db0e9b74"
+    },
+    {
+      "path": "backend-node/test/jimengMaterialHub.test.js",
+      "bytes": 1662,
+      "sha256": "9c132dde06211cbd1fdb92950998260869b9a7fb1853244d6838a08548865f53"
+    },
+    {
+      "path": "backend-node/test/libraryDedup.test.js",
+      "bytes": 6602,
+      "sha256": "fe21988f03d0b0bc4cf7a7e039a36e6c85ba52ae708de44d55842a4b63bedfd0"
+    },
+    {
+      "path": "backend-node/test/minimaxH3.test.js",
+      "bytes": 1996,
+      "sha256": "ddeae41691a11dff30603cd74598eb163036a344a1d0c99205b6da9b085ca7ba"
+    },
+    {
+      "path": "backend-node/test/modelArkAssetConfig.test.js",
+      "bytes": 1406,
+      "sha256": "a9f743276f854c8c26ef88e03090b17afb59a4c7bbbf2805da87573acf070fb0"
+    },
+    {
+      "path": "backend-node/test/taskService.test.js",
+      "bytes": 2744,
+      "sha256": "9ae9ceb2a5e4fc5c1c7bafab091c065f317af4e42c27f99eeb4fa8e346f99dd3"
+    },
+    {
+      "path": "backend-node/test/videoDownload.test.js",
+      "bytes": 6448,
+      "sha256": "8a42897fcf275fe82f38cefe56d2ab67c20ea57db91b5692bf703c654f1a65c6"
+    },
+    {
+      "path": "backend-node/test/videoMedia.test.js",
+      "bytes": 625,
+      "sha256": "9e041d49fe19768d9ee210e9d088e6766062f239a24a0632818f1b5f258c86cf"
+    },
+    {
+      "path": "backend-node/test/videoPromptRules.test.js",
+      "bytes": 1410,
+      "sha256": "53b971e23d2bfc89c4085c2940a997dba4f15882d0ac3a13d888a647860344ce"
+    },
+    {
+      "path": "backend-node/test/videoResumePoll.test.js",
+      "bytes": 4232,
+      "sha256": "ef142cc210d18e435cb9bb85b96b61ecfd4235dab880e45e6160582052d96181"
+    },
+    {
+      "path": "backend-node/tools/ffmpeg/.gitkeep",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend-node/tools/ffmpeg/README.md",
+      "bytes": 767,
+      "sha256": "6a38d4bbf267a0b8fc70bd9ea6dada7c4b7cf60f30da9245a8cfcf0e7fefb570"
+    },
+    {
+      "path": "frontweb/.gitignore",
+      "bytes": 69,
+      "sha256": "c7e541b2f712e60b9692bc4d12e75f6b03ec3c87182a5652e22c3ac1712a6ed1"
+    },
+    {
+      "path": "frontweb/README.md",
+      "bytes": 1362,
+      "sha256": "42bbf090263551387ea75b0222588976830736f6de9f9c2cae75716e5cde6d01"
+    },
+    {
+      "path": "frontweb/index.html",
+      "bytes": 398,
+      "sha256": "ca49cac5f15d0cdd1a5b1a3e4feade3aecf9b1b78bddd5195c48fdec53abced8"
+    },
+    {
+      "path": "frontweb/package-lock.json",
+      "bytes": 65726,
+      "sha256": "4866241f8d133353481150a64f8c5bd3d11b9c9ec188423192ccd98214cfddc2"
+    },
+    {
+      "path": "frontweb/package.json",
+      "bytes": 610,
+      "sha256": "017057f93a0b5e39db985384c971f8ce956f890e0d7251359f8c60d96a34d4ee"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/0cartoon.jpg",
+      "bytes": 73346,
+      "sha256": "c8b58abd4c62154cd90c4a857b6af2c7b12d136db970b117e83438461c4d3171"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/2d-animation.jpg",
+      "bytes": 44574,
+      "sha256": "fb6f0013b6a3ad11b63aba3012dd5c9a25a26b691c2b47bf3bbd58a1aa785a63"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/2d-gufeng.jpg",
+      "bytes": 21281,
+      "sha256": "f7aa3e437d989c6cb10352f35c0d77bc043fd60c532aea32248a6243e01e82b4"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/3d-render.jpg",
+      "bytes": 4777,
+      "sha256": "bb0d84f71d66741e5112ce14a0fe804b86158b2767c1268437e66f7540403cc5"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/anime.jpg",
+      "bytes": 41721,
+      "sha256": "7811f32b943b022aabf728cf673e67bf7244045985c34f85292d084b6a1f5f4a"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/cartoon.jpg",
+      "bytes": 75074,
+      "sha256": "b695374aad4b327db349251f39ab376911c206cdd24444c7ece48607889a61b8"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/chinese.jpg",
+      "bytes": 30414,
+      "sha256": "edd258b1fc0ad461a9681221427fac42a6c234fc3a6d69429ad717c2d9e0583a"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/cinematic.jpg",
+      "bytes": 10449,
+      "sha256": "384da9ee8c6d35605070817476c463b663c016cb65a580caff8770ac96885666"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/comic.jpg",
+      "bytes": 38196,
+      "sha256": "339f7894d75de172fe7a4cc60aca33f91ea4b481ce22f5f6a158be6f0e0c92e7"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/cyberpunk.jpg",
+      "bytes": 10140,
+      "sha256": "a41b3ff1d320f620a837361e4c2718a6386bd888ea91e8edd5f016514c564ad2"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/dark-fantasy.jpg",
+      "bytes": 11853,
+      "sha256": "d1c33400b82adb1e476b1d9eb512f141917be49f5010de765c09efdf2168c8bb"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/documentary.jpg",
+      "bytes": 11370,
+      "sha256": "7094433a2c5c56fe9ee9423513aa766dfa5cac430dcf9b249b92ef3e93450ff7"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/dreamy.jpg",
+      "bytes": 26584,
+      "sha256": "83eed737ecf467dd2b51c1950635dd134e6798cff6d80ef35b804f223b5d7fc4"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/fantasy.jpg",
+      "bytes": 9506,
+      "sha256": "ab6356a2d3911da073737b4dfb927f36df3f3362f71f86dccad836abcd1099db"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/gufeng-3d.jpg",
+      "bytes": 24728,
+      "sha256": "54465cc765d3a4a39777caf89b1df075c071d7207f0dc32a694d285acbdc31ee"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/historical.jpg",
+      "bytes": 54385,
+      "sha256": "2f92f1e1181388664534b6fadcdf212c867b254ef606526e45e7d0098859f594"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/horror.jpg",
+      "bytes": 11481,
+      "sha256": "7886079d5e2ca0503ab95287368d55da8e0ba354d2456d7828ca16eb2bba7b2b"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/impressionist.jpg",
+      "bytes": 12491,
+      "sha256": "517e841a0f39043a4f752a436f9b9036c086356a95f36e545ba20cf6452c6e9c"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/ink-wash.jpg",
+      "bytes": 38208,
+      "sha256": "048dc7de35913ece8a4c7b989a5b83c05a79e1d56a0eeb69b125ab4b86e8cb4e"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/korean-romance-webtoon.jpg",
+      "bytes": 27784,
+      "sha256": "65ef666d5345b4dfecab9f412fd22ab728edee07952876bb0da560da1d6bb365"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/low-poly.jpg",
+      "bytes": 10041,
+      "sha256": "590124773626cd3c8eefc8a71d1f5f79d4f4b11e5b25a966e4cb5c89797db3a6"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/minimalist.jpg",
+      "bytes": 9556,
+      "sha256": "460d168ab5e24838524f84aba4882ac9951b08e191eec6045b6e13b48b323111"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/neo-chinese-guochao.jpg",
+      "bytes": 35419,
+      "sha256": "326c0d92a8d2da1d7b2b26e65f381ee96931aec5187194e7bc9b00fd66f3044c"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/neo-gufeng.jpg",
+      "bytes": 19634,
+      "sha256": "8a101d00a730c0b6c59764aeccb3af0722338e348d4e88260d23b3f8b3182085"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/noir.jpg",
+      "bytes": 10931,
+      "sha256": "698d0ddb95fda62569a58dabce0636275db5090a792e4ffb68d0079bb48b1516"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/oil-painting.jpg",
+      "bytes": 17622,
+      "sha256": "8fad10092cbe867d8b289402a48b649240c9862d45c972840d79af06f5b4d830"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/pixel-art.jpg",
+      "bytes": 11129,
+      "sha256": "523c46e3f063a5c5de64d5b83fc9524923d204b79be4d18765c7cc0f71e0be76"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/post-apoc.jpg",
+      "bytes": 14404,
+      "sha256": "eefa848e015060d3d590faffa5f4bf2702c314c25486c3b88fb781c9701da667"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/realistic.jpg",
+      "bytes": 9426,
+      "sha256": "f5cb7a4c56de44285036049815e7f4414a24ecbc532a7de467c2e67d998108ea"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/realisticanime.png",
+      "bytes": 109084,
+      "sha256": "2c3e7d97769e2965a1ada46b9a1954394acdc6291a923a702e8f4b2a0507a4a4"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/retro.jpg",
+      "bytes": 11209,
+      "sha256": "51d2d616600cf8bb385a3bbaf9748f91eafe68fc83f76c36903f2fc01df4d140"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/sci-fi.jpg",
+      "bytes": 10616,
+      "sha256": "64336fb3daf5c1c50d455cd5954b953d39e458531b77eacf41d196c2b547edb5"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/sketch.jpg",
+      "bytes": 16061,
+      "sha256": "5a45e03dd09b86b7c5f19e6f57590c3aee9ac00425e453073110c9bd034f0a96"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/steampunk.jpg",
+      "bytes": 15339,
+      "sha256": "aff5200ef7ceaae54b7d1899a58ab8949b0d6702c756f5743b54578832c8d237"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/urban-romance-comic.jpg",
+      "bytes": 31115,
+      "sha256": "dd16aa9d1a08865b04235cec0a588f40ef44d1fcb358b27ff7f10c40571bc006"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v1-3d-guoman.png",
+      "bytes": 5392673,
+      "sha256": "6e29726b7c2d129e740a894d2b556ab78d575ec27b08f74a9169d211942c48e3"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v1-gufeng-jianghu.png",
+      "bytes": 1438354,
+      "sha256": "ce93d567d530788ceb51a52d861819092db687c8190eb5ab4b33597366051929"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v1-japanese-q-2-5d.png",
+      "bytes": 1590543,
+      "sha256": "13cfd3789a8f915e3fca768f7d5ddb5cb8fd0fa4e428df37d835ad685cf4f24b"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v1-oriental-xuanhuan.png",
+      "bytes": 1535028,
+      "sha256": "e862effe56ecdd6e8a7e109ca60415cc253066a11fc590a45eb612375a915c65"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v1-pixar.png",
+      "bytes": 1385251,
+      "sha256": "30f3085c28228d52785bd0cd1dc062b5d14c7d6e02fcc210618ef081a039e334"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-black-and-white-film.png",
+      "bytes": 1545750,
+      "sha256": "1b82616e5c840a6fc8ca5f567c1c2abdbf542643c9ce47d9e761431d9ad884e6"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-chinese-wuxia.png",
+      "bytes": 1566886,
+      "sha256": "36f0e847fa5ea801ce4899960b525c68cdcd414340f21b60397ac89f390e847d"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-cinematic-film.png",
+      "bytes": 1749780,
+      "sha256": "527a7d413486211ee0b0650c50beecd26d560d2852aebdac9b4bcf6a8d7cad84"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-guofeng-cyberpunk.png",
+      "bytes": 1618294,
+      "sha256": "cc0edbdc6deb5448e1eae02a01a5bb0c0349d1f93e58d64823a28339af444187"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-oriental-cyberpunk.png",
+      "bytes": 1903683,
+      "sha256": "1b2a0d32ae5c6fed772fc8123de17adf7849577ee0fb879d890260a46ffc42d9"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/v2-retro-film.png",
+      "bytes": 1652367,
+      "sha256": "9438616885c27bb3d5a1982fc660435d709a2a3ec4e74536c485affda1d94268"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/watercolor.jpg",
+      "bytes": 15467,
+      "sha256": "22d2a2abaf26f5d1c9d714a69019cce0dbde9e500ab40c8d957f7547024ff435"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/woodblock.jpg",
+      "bytes": 9955,
+      "sha256": "a80882e80a5f6dc1b79af1ad05d55940dcb0fa9fb77aa20e2c44fbcbabb5a476"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/wuxia.jpg",
+      "bytes": 24799,
+      "sha256": "274aaa3d59a32ac0361a7d55ad0d21762f48133e0aa5ec25c0d08cfc8af79f9a"
+    },
+    {
+      "path": "frontweb/public/style-thumbs/xianxia-3d.jpg",
+      "bytes": 24173,
+      "sha256": "3cc7c1cacff56c9400435be933a66e6e61602428b3d32b457ec83df0269ac623"
+    },
+    {
+      "path": "frontweb/public/wx.jpg",
+      "bytes": 71729,
+      "sha256": "1636ad9a5f4f57b83f6e77595d52b0e0670848e275697777718f1bdc0b33531f"
+    },
+    {
+      "path": "frontweb/src/App.vue",
+      "bytes": 338,
+      "sha256": "53ecc0f6a3b8f464c15287fa7453d78fcd75a5f8aa4ebd709056d9fa7f3f4651"
+    },
+    {
+      "path": "frontweb/src/api/ai.js",
+      "bytes": 1112,
+      "sha256": "ab682b19c2d7888e80aeccf48d3a2e52c49eda2ccff8abdac4571f03686f8146"
+    },
+    {
+      "path": "frontweb/src/api/characterLibrary.js",
+      "bytes": 455,
+      "sha256": "b3cf2e81454f70b126fabf9e6f649a472f32cded547e11e9c30f293bb3a6d01c"
+    },
+    {
+      "path": "frontweb/src/api/characters.js",
+      "bytes": 2228,
+      "sha256": "b9c205829442cf3bd244dbf59c85133fb4ce299f786e9886a89110ebda3a683e"
+    },
+    {
+      "path": "frontweb/src/api/creativeSkillRules.js",
+      "bytes": 691,
+      "sha256": "9c5e12d05acd9418f76c42eb597d875c7773b97eb055c57a037e7f28914b3277"
+    },
+    {
+      "path": "frontweb/src/api/drama.js",
+      "bytes": 2444,
+      "sha256": "577ce766e836174975c60ad2db336582f54e773e1784069079a1481b885b9b1c"
+    },
+    {
+      "path": "frontweb/src/api/generation.js",
+      "bytes": 935,
+      "sha256": "30fd5719a5dd528132cb76229c296a61d2d6479ad1d507422674c6498cf50c3f"
+    },
+    {
+      "path": "frontweb/src/api/images.js",
+      "bytes": 345,
+      "sha256": "1569268284399136e4740d44d94dd7f6357dbf19fb033400db49e7ea7d1307cd"
+    },
+    {
+      "path": "frontweb/src/api/prompts.js",
+      "bytes": 476,
+      "sha256": "e5743422a501b60b7e697b01eb825a1384cd2a2c1c74340fa783e29e8bdc8bd3"
+    },
+    {
+      "path": "frontweb/src/api/propLibrary.js",
+      "bytes": 425,
+      "sha256": "9b0b81e2e6b0260f8d14f6fa78f5300415cb3a509913ae8ec72ab72ab00cb44e"
+    },
+    {
+      "path": "frontweb/src/api/props.js",
+      "bytes": 1241,
+      "sha256": "a0c2ac03d6461f280d556323a01cd60d72588a60a6fd4c3f5b74ce7bd4234660"
+    },
+    {
+      "path": "frontweb/src/api/sceneLibrary.js",
+      "bytes": 431,
+      "sha256": "330d016dd10cc391927695fbc77d2623bed84394ec0a52bc992223773edd08c0"
+    },
+    {
+      "path": "frontweb/src/api/sceneModelMap.js",
+      "bytes": 430,
+      "sha256": "245c11b715ec1f62161625a8d4288196f6643cad8f64da73020103372e1e7dd1"
+    },
+    {
+      "path": "frontweb/src/api/scenes.js",
+      "bytes": 1363,
+      "sha256": "aaec22f6a6a88b6752d653648e087a47f807e73577dc1c1855924e34d66da106"
+    },
+    {
+      "path": "frontweb/src/api/storyboards.js",
+      "bytes": 3622,
+      "sha256": "d7eb7f62070add8ade2554227daacc5b3c44a107a8da669bcf7c1c1ecd190066"
+    },
+    {
+      "path": "frontweb/src/api/task.js",
+      "bytes": 341,
+      "sha256": "24afcdc1665ae1c3d44793cb88e1401025278aa800e08d5d19ef77fc4cd32a45"
+    },
+    {
+      "path": "frontweb/src/api/upload.js",
+      "bytes": 1117,
+      "sha256": "8b7eeea182f73ec93d7b33a2583b1df4b7656815b5ff5f2a4a86671934f87cab"
+    },
+    {
+      "path": "frontweb/src/api/videoPromptRules.js",
+      "bytes": 665,
+      "sha256": "775f976719018ea7f8f4886d25f3b19fd22bb6376a1816246901808fa8cbc2bc"
+    },
+    {
+      "path": "frontweb/src/api/videos.js",
+      "bytes": 511,
+      "sha256": "f52d360f9ace6c5bc766a1d5b926cec84f0d206ef255f9a76481d05e84a84b60"
+    },
+    {
+      "path": "frontweb/src/components/AIConfigContent.vue",
+      "bytes": 111959,
+      "sha256": "7a6ce37db25ef75143aee7b9c2ea81428401291aa60378f5f4fc2f0b7c5461f5"
+    },
+    {
+      "path": "frontweb/src/components/EpisodeBatchImportDialog.vue",
+      "bytes": 12157,
+      "sha256": "ebe5b605fd03289fdeda330272f9d171cb657c5e5cdc28cee0ac4c4790312060"
+    },
+    {
+      "path": "frontweb/src/components/PromptEditor.vue",
+      "bytes": 9157,
+      "sha256": "77494a5a53881db9879dbf531f3b1af7a26d8229cb6c1f0abdbe9b9a458cc530"
+    },
+    {
+      "path": "frontweb/src/components/RuleSkillManager.vue",
+      "bytes": 17983,
+      "sha256": "fc07a1aa5d8fbaab7c244895eba10ad59514626475698ab4fe76462a4b8b9e5c"
+    },
+    {
+      "path": "frontweb/src/components/SceneModelMap.vue",
+      "bytes": 14487,
+      "sha256": "539ffa56ff14d4fc6ade6f3fd705a2de46757b041e54541782a76335a8293e31"
+    },
+    {
+      "path": "frontweb/src/components/Sd2AssetManagement.vue",
+      "bytes": 29249,
+      "sha256": "5357cf624a3b7e0c617e9cc6a52f8953dbdc90a627c43000fdabb3fbbf6aeb37"
+    },
+    {
+      "path": "frontweb/src/components/StylePickerButton.vue",
+      "bytes": 10407,
+      "sha256": "b2e149bbc011485a6dfeb01598aac12c6012d10c6c73402f75357649959789e8"
+    },
+    {
+      "path": "frontweb/src/components/UniversalSegmentOmniAtEditor.vue",
+      "bytes": 18540,
+      "sha256": "bd75e9bc5d3a5183f7205fd063081ed6baef1c8976db91324c661417f99a5783"
+    },
+    {
+      "path": "frontweb/src/components/VideoDownloadDialog.vue",
+      "bytes": 4971,
+      "sha256": "382110015d0b2de39b9d8de3fa391f76dbf6c42db28092fc0485c436cd59e6a5"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasAddButtonNode.vue",
+      "bytes": 1943,
+      "sha256": "5c5b970ee6224686f6378dca138e25e7d66e1c82c2fe8b977dc67eaa0ab0c691"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasAssetNode.vue",
+      "bytes": 4990,
+      "sha256": "fe4f582a798e0bc092065268744b5ff2011e89d8d06c363dec57c3a75437576e"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasAssetPanel.vue",
+      "bytes": 12528,
+      "sha256": "b489184b91e6bbf4c209c43ceb4ae22f5c83ee7ac5df03c473bf1076d901bcfd"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasContextMenu.vue",
+      "bytes": 1972,
+      "sha256": "dc0b15842b1121963fad2195049f43ddeea13aaa0a31ed561f9162ca7310fd8e"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasCreateDialog.vue",
+      "bytes": 4518,
+      "sha256": "cd012e75d66184b6ed023db0ecc15c059ebdd9fd2d6dd228c0ffc402d5314b44"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasDramaHeaderNode.vue",
+      "bytes": 1317,
+      "sha256": "cf95474f30d4831e1cc6b60d684269c9c80f7c2150cbd68900ef99451c2b3fb9"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasEpisodeNode.vue",
+      "bytes": 953,
+      "sha256": "f2b026c4d2d9d29fd2a3e6cede5db4ccc8b4034479c4be2c84dbd6e71d21e2cd"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasFloatingToolbar.vue",
+      "bytes": 1168,
+      "sha256": "2298023a9242c3b466c499a6b618dff3c412e53026a1cd39efe08f2b255b218c"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasFlowAligner.vue",
+      "bytes": 547,
+      "sha256": "566c7ec1f500850a7650fb925af0fa2d2f78d1f08af6c6384301f49e0dd8d880"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasLabelNode.vue",
+      "bytes": 359,
+      "sha256": "caf5216676af8f95fd7177092c22b45d8b2082cbd9f529f08a6d43b3b27572b7"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasMediaNode.vue",
+      "bytes": 4228,
+      "sha256": "919d9e44a4e9f9bc6f97842cb736820ac05bb143f1cc83c18074cba882f5a614"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasMediaPanel.vue",
+      "bytes": 7029,
+      "sha256": "0e3ad5cd93d5ddbd09a0abddb0dfbfdaad294e95a706f9da820cb3d4cff2d95b"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasNodeStatusOverlay.vue",
+      "bytes": 1541,
+      "sha256": "0180463bd12cc41b8ca20b85a79b94e802d9d43762cc3dcf3a56c90e14df1719"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasScriptNode.vue",
+      "bytes": 3507,
+      "sha256": "ec2fffa9b69ba78995007c329988673958e5094d6dd3607b942150f8c33af26f"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasScriptPanel.vue",
+      "bytes": 5603,
+      "sha256": "cfdce6d77ffe7169e51a4ea66ebcbb15b46a42f523d54a3c8a421676b98d8396"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasStoryboardNode.vue",
+      "bytes": 4759,
+      "sha256": "445cdae02d238e61c3f773c831de7635e0b6f967a9c3dbbf9b0cb07208457343"
+    },
+    {
+      "path": "frontweb/src/components/dramaCanvas/CanvasStoryboardPanel.vue",
+      "bytes": 15867,
+      "sha256": "c89bc7ffa63ce397a0f7f9b647cfa7c048bc624df95ecfd7793a8b8598df1e41"
+    },
+    {
+      "path": "frontweb/src/composables/filmCreate/libraryMembership.js",
+      "bytes": 2089,
+      "sha256": "408b2ab012349b37e0157524a041a3b5a2b6f3be16251e8a54805f2ecbf62a4c"
+    },
+    {
+      "path": "frontweb/src/composables/filmCreate/useCharacters.js",
+      "bytes": 29830,
+      "sha256": "28e589cd756c417a7714000cec2515feb4092af50e36499691d931b68b490e66"
+    },
+    {
+      "path": "frontweb/src/composables/filmCreate/useNavigation.js",
+      "bytes": 1274,
+      "sha256": "ec3b4f2bfcde3c898813cc11ebb40d2b1f30f52af043d7d71281072770c26440"
+    },
+    {
+      "path": "frontweb/src/composables/filmCreate/useProps.js",
+      "bytes": 21409,
+      "sha256": "44666766c16083926fd0ca59784b838e146849023471691b2feedda552e01301"
+    },
+    {
+      "path": "frontweb/src/composables/filmCreate/useScenes.js",
+      "bytes": 21695,
+      "sha256": "4afaf3431cb04f15f3964943dc0a05ce7889411a9df075efc45e4084c3a04bc1"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasAssetGenerate.js",
+      "bytes": 2717,
+      "sha256": "fc7ef4826d4ce07223ee53431ab12cc695afd5c8be67743b65b4ac1a40f6f5cf"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasContext.js",
+      "bytes": 175,
+      "sha256": "563dd54acb1f866e2efefcfe133a3cf00a800b7b8948c7cf7ae04690df2705ab"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasCrud.js",
+      "bytes": 7856,
+      "sha256": "952f3309dc63b822c76461800e3637c921552e10556d009c84193c3c36afb94d"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasEpisodeGenerate.js",
+      "bytes": 8757,
+      "sha256": "d05a14c4439beb5446045c1178df6d339130f1526efb87749646da0151af23db"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasNodeStatus.js",
+      "bytes": 1075,
+      "sha256": "e3eaac50c25f1c76954ca33884b6716c3940954d7a43350af511bf046ed6639d"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasScript.js",
+      "bytes": 6668,
+      "sha256": "b8ffffc6a907ff6c1281cf81387dd98c2a2cb061d47a3edf0d595703e33521e1"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasStoryboardMedia.js",
+      "bytes": 1778,
+      "sha256": "7e3599d8cf13fe5e4e230050890836092bd8c1252691fefd6dd1e86a4e5af098"
+    },
+    {
+      "path": "frontweb/src/composables/useCanvasWorkflowRunner.js",
+      "bytes": 5481,
+      "sha256": "7a20f02481196daac18cb5cbfe08de529dd3e7efedd8c28c20282ad75d4fd2b5"
+    },
+    {
+      "path": "frontweb/src/composables/useGenerationTaskSync.js",
+      "bytes": 5013,
+      "sha256": "2424a5cd6549feabf4b7fb7d9008d084db31175b34ee478aa41776631c18b33c"
+    },
+    {
+      "path": "frontweb/src/composables/useStoryGeneration.js",
+      "bytes": 4650,
+      "sha256": "90d5a2378d1824986e6a4289a764b62ca088520544a198f184371e676a8c9e82"
+    },
+    {
+      "path": "frontweb/src/composables/useTheme.js",
+      "bytes": 653,
+      "sha256": "b3f420a3cc961e2efe732ba861d434ff027430b1686d80f82962862e8d981d82"
+    },
+    {
+      "path": "frontweb/src/constants/styleOptions.js",
+      "bytes": 35009,
+      "sha256": "db2323a06d3a6801d8793c361297e9fdd2d0c0ec08786cba1b680a9708a15601"
+    },
+    {
+      "path": "frontweb/src/main.js",
+      "bytes": 959,
+      "sha256": "aead599d7e1c4146c0371d089a24aae362fc2328ec0266a85d90ce6674fd5000"
+    },
+    {
+      "path": "frontweb/src/router/index.js",
+      "bytes": 1841,
+      "sha256": "31ea9b6042c1b06acc935ea4c468c62c835506c38de9d5182e22876baff69714"
+    },
+    {
+      "path": "frontweb/src/stores/film.js",
+      "bytes": 3382,
+      "sha256": "a47f51d6d577eca3944dd148a4035969791c7bb270114681e6f53dc0d27668f6"
+    },
+    {
+      "path": "frontweb/src/stores/generationTaskStore.js",
+      "bytes": 23036,
+      "sha256": "1373a3d442762c522b2ad8c50e625a21f11256f757e941aa8284bea7fa8e0d1a"
+    },
+    {
+      "path": "frontweb/src/styles/theme.css",
+      "bytes": 14896,
+      "sha256": "b28a32ff9c139fb429ce4412e8a639ceff34b6795970dc3be81e3238e95cf788"
+    },
+    {
+      "path": "frontweb/src/utils/canvasEntityIds.js",
+      "bytes": 851,
+      "sha256": "b41009c50fe51465eea0d2bdbf342814ab9bda890666bce4cc7d4516d9700336"
+    },
+    {
+      "path": "frontweb/src/utils/canvasLayout.js",
+      "bytes": 2398,
+      "sha256": "ec215d14385a4fdd95bdf4afe1dcd97daa76e4cd5d7096cdac80dc44bbe59daf"
+    },
+    {
+      "path": "frontweb/src/utils/canvasWorkflow.js",
+      "bytes": 2641,
+      "sha256": "c326f175b676599be547f80946a85b5ae60ec94e33407dc37ce20ddace9b8e3a"
+    },
+    {
+      "path": "frontweb/src/utils/dramaCanvasAdapter.js",
+      "bytes": 17229,
+      "sha256": "8bbb8330c18d69f1746919a1bcc022234966b10ca7c78109f80ee47aa1361056"
+    },
+    {
+      "path": "frontweb/src/utils/exportStoryboardSheet.js",
+      "bytes": 7099,
+      "sha256": "fd322009adf37a92d8c10c3b2e35696f42982f6b10786e6e91d3c95b21dff9f7"
+    },
+    {
+      "path": "frontweb/src/utils/mediaUrl.js",
+      "bytes": 760,
+      "sha256": "4c3abdc4614d1855091cb5f0fa82d7f5f47b2c9fcfe315f9bb29a21d5faca047"
+    },
+    {
+      "path": "frontweb/src/utils/modelSelection.js",
+      "bytes": 837,
+      "sha256": "5b833949606c91f095813389972fb1a948890272f88c2d0186818ea520c7ef72"
+    },
+    {
+      "path": "frontweb/src/utils/request.js",
+      "bytes": 1088,
+      "sha256": "56873555086122a74f7a221fb5eb057a01ad609ca0bb7138a0a9227168e565d0"
+    },
+    {
+      "path": "frontweb/src/utils/scriptEpisodes.js",
+      "bytes": 3205,
+      "sha256": "b230eccae0a63f95d8c9b8a2d06904f016dcff9a89aa1658e4ac6352d46000f1"
+    },
+    {
+      "path": "frontweb/src/utils/scriptImport.js",
+      "bytes": 5556,
+      "sha256": "e1cc77b6698608ff4f950dfface0348192131a7eb4723247fe0579b560cb97f6"
+    },
+    {
+      "path": "frontweb/src/utils/storyboardMedia.js",
+      "bytes": 5312,
+      "sha256": "b62778fe80bcc89b922f31bcb9e089932c43d075b5e51f63538624da9c467d94"
+    },
+    {
+      "path": "frontweb/src/utils/universalPolishBatch.js",
+      "bytes": 1481,
+      "sha256": "7f971a543ce91ba9ac52e0c62b7acc32914cf3a75c5b8952af523b5a72361411"
+    },
+    {
+      "path": "frontweb/src/utils/universalPromptStream.js",
+      "bytes": 1679,
+      "sha256": "9a0708e2baa225aa4c4c330bbfb4ae9b0feff9c86b0e1e7726acf776331b7e3b"
+    },
+    {
+      "path": "frontweb/src/views/AiConfig.vue",
+      "bytes": 3351,
+      "sha256": "a58a10ec7e9011b3eb0b9b3145ca9229bcb750e72361ab52dce5672b31566c35"
+    },
+    {
+      "path": "frontweb/src/views/CreativeSkillRules.vue",
+      "bytes": 6871,
+      "sha256": "ab4d4718900dbd164789950f523259059aec2973e0aafd3f89648f55d590eae0"
+    },
+    {
+      "path": "frontweb/src/views/DramaCanvas.vue",
+      "bytes": 34953,
+      "sha256": "f0a043d513e4a53360ad74e54ae10efc88451a16999b71bf8d1474d27770e645"
+    },
+    {
+      "path": "frontweb/src/views/DramaDetail.vue",
+      "bytes": 72091,
+      "sha256": "483cc18b81726952538f856e5030d035d21b86d00a40c0c1e2d30341c15d8c95"
+    },
+    {
+      "path": "frontweb/src/views/FilmCreate.vue",
+      "bytes": 439152,
+      "sha256": "6fb40f51ad6ddf7dfe4634dde449102f7ac2d7e4e02a4ad5a5f4664fd873b9cf"
+    },
+    {
+      "path": "frontweb/src/views/FilmList.vue",
+      "bytes": 55233,
+      "sha256": "e055cbdf2be03cbd8439d9720882379d50e7931c6223334905675787f998938b"
+    },
+    {
+      "path": "frontweb/src/views/FreeCreate.vue",
+      "bytes": 14405,
+      "sha256": "77ea0ddea575f9a52c9aba13b70f3b545a16c052d9451845b4840a9a9062e7d4"
+    },
+    {
+      "path": "frontweb/src/views/MediaLibrary.vue",
+      "bytes": 11365,
+      "sha256": "d3a9b3e76031dae32b27967fb14c5ca520c1d9b465b6b0ff3392ab44d7b0b899"
+    },
+    {
+      "path": "frontweb/src/views/VideoPromptRules.vue",
+      "bytes": 7398,
+      "sha256": "8ae397e32e93dc55ca8d723682c0d95447b6025d902eb08b946f13306bb3dce3"
+    },
+    {
+      "path": "frontweb/test/modelSelection.test.js",
+      "bytes": 836,
+      "sha256": "da4a1ece9ec36d449aba1669acf1e3c99ca113705cd9df76aaf9ea6ca162e0e8"
+    },
+    {
+      "path": "frontweb/test/scriptImport.test.js",
+      "bytes": 4350,
+      "sha256": "189376b06e3b425521be60401e921e8c9d152faafba630c499c1123a005a205f"
+    },
+    {
+      "path": "frontweb/test/styleOptions.test.js",
+      "bytes": 2898,
+      "sha256": "c79d78d3bd306bdba36b26baefcff6b39eebf9b170d302928b5025ace78c2d5e"
+    },
+    {
+      "path": "frontweb/vite.config.js",
+      "bytes": 607,
+      "sha256": "f43645f2653d09f2268631feaf9176e0e6d6a58a08f0aaac9a4427b98ccabb71"
+    },
+    {
+      "path": "desktop/.gitignore",
+      "bytes": 57,
+      "sha256": "dab5eb71755a5347f7659da68e45177f16cdfdec4af0f81802f56d84f8308f36"
+    },
+    {
+      "path": "desktop/README.md",
+      "bytes": 5806,
+      "sha256": "79eaec24f7bd3f35a73ad730a775c9d7e3492876befbc679e590827ae63f01dd"
+    },
+    {
+      "path": "desktop/dist-cn.bat",
+      "bytes": 46,
+      "sha256": "303cb576b8c3dba5b581c07cda72d7cb7047e05007f253af99354a28222ec019"
+    },
+    {
+      "path": "desktop/dist-mac.sh",
+      "bytes": 1485,
+      "sha256": "048b853e9ac2e929462262327f29fedc2abf93504edc8a752ea1584ef91afe1d"
+    },
+    {
+      "path": "desktop/electron-builder-lite.json",
+      "bytes": 902,
+      "sha256": "a80503b08ec63fe4dc4a804094b5a624cb6d2045ba64f67568a45ea6f466539a"
+    },
+    {
+      "path": "desktop/electron-builder-mac-lite.json",
+      "bytes": 850,
+      "sha256": "e389bb0ca2fbf0152b9ed8ddb70f0568faf85f1d21c4b1880d7ec4a709364814"
+    },
+    {
+      "path": "desktop/electron-builder-mac.json",
+      "bytes": 941,
+      "sha256": "ec897e45373975cb3a81b21913f577c375549219ddda9e17567c4ddaf222114b"
+    },
+    {
+      "path": "desktop/main.js",
+      "bytes": 10446,
+      "sha256": "02be9174be87657e5c1586c1bdbe104c407ecab35daf8908bed006fec0ef0e72"
+    },
+    {
+      "path": "desktop/package-lock.json",
+      "bytes": 218086,
+      "sha256": "32a01de7ddf872ba618da8d55fda1f9cb7c6bb75d2f05b888b7883330e5906b7"
+    },
+    {
+      "path": "desktop/package.json",
+      "bytes": 2377,
+      "sha256": "c6fc9bd138d1c45963cc03d7e72facf03ed23cd3e89ab9fbc7fb55938be8c9ba"
+    },
+    {
+      "path": "desktop/scripts/clean-win-unpacked.js",
+      "bytes": 1881,
+      "sha256": "d1e8fe176b1416db70c1982f9162122352c232e88a337dd8afa88b7c4711a911"
+    },
+    {
+      "path": "desktop/scripts/copy-backend.js",
+      "bytes": 1370,
+      "sha256": "f3bd561eb00fac0df728beda5ebe955ccabdac6210946a357febbed1f727e74d"
+    },
+    {
+      "path": "desktop/scripts/copy-front.js",
+      "bytes": 515,
+      "sha256": "dee3895633cf6b759db64c4f3e010d1dc01840e5f49f29c8861af64e301be0d6"
+    },
+    {
+      "path": "desktop/scripts/dist-cn.js",
+      "bytes": 1913,
+      "sha256": "e6534d1e6aefa5a4b747c553b90d3fcd4e3b6b9c7e983ca317812ef5e5a6a560"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/01_init.sql",
+      "bytes": 6174,
+      "sha256": "8f2bd7011f84bc2c7675dad12db5bd17e555beaab4a8b16f794a56df9b554a52"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/02_add_default_model.sql",
+      "bytes": 139,
+      "sha256": "976dd98367c7b81e4c8d357d4f5086edec1af441c0f282c861ae3c972f2ff369"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/03_add_props_episode_id.sql",
+      "bytes": 143,
+      "sha256": "faf23e48ca3d681e6e652a3f840f43c10b938a3d00a362715d209dd34949c0eb"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/04_async_tasks_columns.sql",
+      "bytes": 239,
+      "sha256": "5a18b0c11034470685f6e65600e343e02f23b997dca92d0884b491381382b813"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/05_add_image_generations_columns.sql",
+      "bytes": 180,
+      "sha256": "683f742de6f84091e675646345a67a56e6326afa13b4eada93a262fa2a916d59"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/06_add_characters_local_path.sql",
+      "bytes": 96,
+      "sha256": "2ad71b10daaeec52aec191158aa7e6de1094f7c475d3d6b59157cf5a77700ddb"
+    },
+    {
+      "path": "desktop/scripts/initial-migrations/07_add_scenes_image_columns.sql",
+      "bytes": 146,
+      "sha256": "71a100dc14ddaf9ee98640b0778e07dded1a0decb452b657716d9db5d82e4296"
+    },
+    {
+      "path": "example_drama/衣服设计天才302.zip",
+      "bytes": 133,
+      "sha256": "415b563f0c75d6318bc60863543ae16d48caeae43e271ca176b545a36d26fc33"
+    },
+    {
+      "path": "openclaw-skill/README.md",
+      "bytes": 3574,
+      "sha256": "a0d5a6a8cc65b5900e7efb9381464da8b26246f925c9eeb02c76facecc0f5b4e"
+    },
+    {
+      "path": "openclaw-skill/SKILL.md",
+      "bytes": 18089,
+      "sha256": "8194d987fbade189c717a0554c0b4919ac39549e13da74dab047324aef46e457"
+    },
+    {
+      "path": "openclaw-skill/skill.json",
+      "bytes": 1223,
+      "sha256": "d279c03fa9e813cc109bb7f1c1122135d5dd2b67351e64faa5a0ab919a73971b"
+    },
+    {
+      "path": "openclaw-skill/tools.json",
+      "bytes": 621,
+      "sha256": "0212322caacddde0b8443aeb2e1f150865fbb8cc8cce55323f68ea669defebb7"
+    },
+    {
+      "path": "docs/changelog.md",
+      "bytes": 235,
+      "sha256": "7b95d16a2324aa1066e780162cc5910eb5dfd384cfabe51763bfc09d1ebdad9c"
+    },
+    {
+      "path": "docs/comfyui原理.txt",
+      "bytes": 1777,
+      "sha256": "dcce3b31e0d33598462b731dc7973a49e9d892182d40dd6674fdd8cbccf6ce40"
+    },
+    {
+      "path": "docs/comfyui资料1.md",
+      "bytes": 14234,
+      "sha256": "18d62e9b098421e07e022b8f244510d0b793a306f85973d01fc14c159dc055e6"
+    },
+    {
+      "path": "docs/comfyui配置.md",
+      "bytes": 673,
+      "sha256": "aa08eea07b8b0304b2576308521f968994b20829d05ed874639cfb53397e626f"
+    },
+    {
+      "path": "docs/configuration.md",
+      "bytes": 9771,
+      "sha256": "f755a8a129c2ba0655d0a302db0ad43272f3f69f817223a50482b68df9159c97"
+    },
+    {
+      "path": "docs/en.md",
+      "bytes": 13426,
+      "sha256": "cf77190dba1696e3644ebe796c113f7ecc806e47653737021e0b8af6d44dd844"
+    },
+    {
+      "path": "docs/plans/2026-03-09-storyboard-angle-and-quad-grid.md",
+      "bytes": 13438,
+      "sha256": "a73af58ca6288b6c0ccf50d6e41fb127582f98d1ae3322fde48bd5a1ad1bda22"
+    },
+    {
+      "path": "docs/plans/2026-03-09-storyboard-angle-and-quadgrid.md",
+      "bytes": 10016,
+      "sha256": "a74aff167064333814ae0155add3229166c13b7b3b04ee3ee664b15f0f6081ce"
+    },
+    {
+      "path": "docs/plans/2026-03-14-storyboard-image-quality.md",
+      "bytes": 6307,
+      "sha256": "8b9d25425b63a2ee5ad4e23251e076bb2c034eea4598ed253145a6e7f639dcd0"
+    },
+    {
+      "path": "docs/plans/2026-06-15-drama-canvas-workflow-plan.md",
+      "bytes": 11172,
+      "sha256": "10b9ee90686d5835135af1c3de8a937ef907344859bf3d2248f4b62a0285615c"
+    },
+    {
+      "path": "docs/plans/2026-08-06-custom-drama-style.md",
+      "bytes": 18012,
+      "sha256": "932561da00dee480d53f02aeb8d3bbc90b4765f106dc1d35b195fd534283efa4"
+    },
+    {
+      "path": "docs/quickstart.md",
+      "bytes": 6335,
+      "sha256": "8326165abd81b4467c7b4498b903e5bd326814732bbe11fb3b04552aa0a32f80"
+    },
+    {
+      "path": "docs/story.md",
+      "bytes": 4340,
+      "sha256": "9a505f9fbc5626d0da9be3c31f612b62375c43ce078069e94e240935e4004271"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-06-custom-drama-style-design.md",
+      "bytes": 5732,
+      "sha256": "4b4c55391756dd4154449e448caf0f4b7e2f852e1a53a905ba0e264ef817fabb"
+    },
+    {
+      "path": "docs/ui-v2-topnav-theme-switch-proposal.md",
+      "bytes": 6799,
+      "sha256": "3b6e55d1301e57b0ca56e38526b586701b233df15334affe074055cb30db9e90"
+    },
+    {
+      "path": "docs/微信支付.docx",
+      "bytes": 927641,
+      "sha256": "ac60b73ec1aa0977ff1366c316eee905d0a6be93d4f91a4ee7846f63264bfa5c"
+    },
+    {
+      "path": "docs/批量导入剧集-原文保留说明.md",
+      "bytes": 3006,
+      "sha256": "ab3ed8f7998d3f10e12ea387d3f8cfcb476587f350c11b19d0cfd5ec814dadb7"
+    },
+    {
+      "path": "docs/生成规则与流程.md",
+      "bytes": 11592,
+      "sha256": "3f50b4393c6ab33b054754db9854717f7f5d9834d5d4addf818d85856cd7bddc"
+    },
+    {
+      "path": "README.md",
+      "bytes": 13208,
+      "sha256": "6bc368eba4bf53acc84d694a2858e85f48bb8b9dd6a206889fd8c202cdb76401"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1069,
+      "sha256": "e2dc66d5ee347c1dded6cf5798005b54dfe41436888a5f4438950adb39c3c205"
+    },
+    {
+      "path": "AGENTS.md",
+      "bytes": 1762,
+      "sha256": "5e7f82f4b0cea9996aa48fdb9114a424bc8b786e1dbd0e698103a3f63289231d"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 40732,
+      "sha256": "055c125d9ad4b3737e8b47b4812f6da91cc3de69de24c74a174cb8a80f990e53"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 670,
+      "sha256": "870b4a6c843adfb733faacb97ac1ae53ae2e0a9642d72525cdb781e4ba74a419"
+    },
+    {
+      "path": ".gitattributes",
+      "bytes": 422,
+      "sha256": "697894106261dd1d948092d5339f2392ce849b83e5dd8fb06ca1d0c4a3a73a95"
+    },
+    {
+      "path": "run_dev.bat",
+      "bytes": 766,
+      "sha256": "a43f921b57c9b53a8961af91df3420edc3909a1b15d965f901afc65ab0964b74"
+    },
+    {
+      "path": "run_dev.ps1",
+      "bytes": 678,
+      "sha256": "039701d1979f4a0482177cf735fe322b755806903a425a202f85358144496137"
+    }
+  ]
+}

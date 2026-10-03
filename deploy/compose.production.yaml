@@ -1,0 +1,48 @@
+name: comic-drama
+services:
+  app:
+    container_name: comic-drama
+    image: comic-drama:${APP_VERSION:-20261002-1}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-public.ecr.aws/docker/library/node:22-bookworm-slim}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PUBLIC_ORIGIN: https://comic-drama.nexusapi.center
+      DATABASE_PATH: /app/backend-node/data/comic_drama_workflow.db
+      STORAGE_PATH: /app/backend-node/data/storage
+      TRUST_PROXY: uniquelocal
+      ALLOW_REGISTRATION: 'false'
+      PLATFORM_ADMIN_USER_IDS: ${PLATFORM_ADMIN_USER_IDS:-}
+      AI_TASK_CONCURRENCY: '4'
+      AI_GENERATION_RATE_LIMIT: '0'
+      AI_DAILY_REQUEST_LIMIT: '300'
+      AI_MAX_PENDING_PER_ORG: '50'
+    volumes:
+      - app_data:/app/backend-node/data
+    networks:
+      - proxy
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 2g
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+volumes:
+  app_data:
+    name: comic-drama-data
+networks:
+  proxy:
+    external: true
+    name: nexus-shared
+

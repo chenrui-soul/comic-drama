@@ -1,0 +1,14 @@
+https://localhost {
+    tls internal
+    encode zstd gzip
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        X-Frame-Options "DENY"
+        -Server
+    }
+    request_body {
+        max_size 100MB
+    }
+    reverse_proxy app:5680
+}

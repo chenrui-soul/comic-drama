@@ -1,0 +1,50 @@
+-- 将领域数据、生成记录、任务和素材库全部挂接到组织
+ALTER TABLE episodes ADD COLUMN organization_id INTEGER;
+ALTER TABLE storyboards ADD COLUMN organization_id INTEGER;
+ALTER TABLE characters ADD COLUMN organization_id INTEGER;
+ALTER TABLE scenes ADD COLUMN organization_id INTEGER;
+ALTER TABLE props ADD COLUMN organization_id INTEGER;
+ALTER TABLE image_generations ADD COLUMN organization_id INTEGER;
+ALTER TABLE video_generations ADD COLUMN organization_id INTEGER;
+ALTER TABLE video_merges ADD COLUMN organization_id INTEGER;
+ALTER TABLE assets ADD COLUMN organization_id INTEGER;
+ALTER TABLE async_tasks ADD COLUMN organization_id INTEGER;
+ALTER TABLE character_libraries ADD COLUMN organization_id INTEGER;
+ALTER TABLE scene_libraries ADD COLUMN organization_id INTEGER;
+ALTER TABLE prop_libraries ADD COLUMN organization_id INTEGER;
+ALTER TABLE ai_model_map ADD COLUMN organization_id INTEGER;
+ALTER TABLE global_settings ADD COLUMN organization_id INTEGER;
+
+UPDATE episodes SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = episodes.drama_id) WHERE organization_id IS NULL;
+UPDATE storyboards SET organization_id = (SELECT organization_id FROM episodes e WHERE e.id = storyboards.episode_id) WHERE organization_id IS NULL;
+UPDATE characters SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = characters.drama_id) WHERE organization_id IS NULL;
+UPDATE scenes SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = scenes.drama_id) WHERE organization_id IS NULL;
+UPDATE props SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = props.drama_id) WHERE organization_id IS NULL;
+UPDATE image_generations SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = image_generations.drama_id) WHERE organization_id IS NULL;
+UPDATE video_generations SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = video_generations.drama_id) WHERE organization_id IS NULL;
+UPDATE video_merges SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = video_merges.drama_id) WHERE organization_id IS NULL;
+UPDATE assets SET organization_id = (SELECT organization_id FROM dramas d WHERE d.id = assets.drama_id) WHERE organization_id IS NULL;
+UPDATE async_tasks SET organization_id = 1 WHERE organization_id IS NULL;
+UPDATE character_libraries SET organization_id = COALESCE((SELECT organization_id FROM dramas d WHERE d.id = character_libraries.drama_id), 1) WHERE organization_id IS NULL;
+UPDATE scene_libraries SET organization_id = COALESCE((SELECT organization_id FROM dramas d WHERE d.id = scene_libraries.drama_id), 1) WHERE organization_id IS NULL;
+UPDATE prop_libraries SET organization_id = COALESCE((SELECT organization_id FROM dramas d WHERE d.id = prop_libraries.drama_id), 1) WHERE organization_id IS NULL;
+UPDATE ai_model_map SET organization_id = 1 WHERE organization_id IS NULL;
+UPDATE global_settings SET organization_id = 1 WHERE organization_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_episodes_org ON episodes(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_storyboards_org ON storyboards(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_characters_org ON characters(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_scenes_org ON scenes(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_props_org ON props(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_image_generations_org ON image_generations(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_video_generations_org ON video_generations(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_video_merges_org ON video_merges(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_assets_org ON assets(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_async_tasks_org ON async_tasks(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_character_libraries_org ON character_libraries(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_scene_libraries_org ON scene_libraries(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_prop_libraries_org ON prop_libraries(organization_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_ai_model_map_org ON ai_model_map(organization_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_model_map_org_key ON ai_model_map(organization_id, key);
+CREATE INDEX IF NOT EXISTS idx_global_settings_org ON global_settings(organization_id, key);
+

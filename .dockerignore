@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/data
+**/logs
+**/*.log
+**/*.db*
+**/*.sqlite*
+**/*.key
+**/.env*
+**/.git
+**/.obsidian
+**/configs
+**/tools/ffmpeg
+**/test
+deploy/backups
+desktop
+assets

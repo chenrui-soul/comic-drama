@@ -1,0 +1,70 @@
+name: minidrama
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+    image: minidrama:${APP_VERSION:-local}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PUBLIC_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in .env}
+      DATABASE_PATH: /app/backend-node/data/drama.db
+      STORAGE_PATH: /app/backend-node/data/storage
+      TRUST_PROXY: uniquelocal
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      PLATFORM_ADMIN_USER_IDS: ${PLATFORM_ADMIN_USER_IDS:-}
+      AI_TASK_CONCURRENCY: ${AI_TASK_CONCURRENCY:-4}
+      # 0 disables the optional per-workspace AI burst limiter. The normal API
+      # guard and daily quota remain available for production safety.
+      AI_GENERATION_RATE_LIMIT: ${AI_GENERATION_RATE_LIMIT:-0}
+      AI_DAILY_REQUEST_LIMIT: ${AI_DAILY_REQUEST_LIMIT:-300}
+      AI_MAX_PENDING_PER_ORG: ${AI_MAX_PENDING_PER_ORG:-50}
+    volumes:
+      - app_data:/app/backend-node/data
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 2g
+    pids_limit: 256
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app: { condition: service_healthy }
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+  backup:
+    image: minidrama:${APP_VERSION:-local}
+    profiles: [maintenance]
+    user: root
+    entrypoint: [tar]
+    network_mode: none
+    volumes:
+      - app_data:/data:ro
+      - ./backups:/backups
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:
